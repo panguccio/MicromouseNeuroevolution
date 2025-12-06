@@ -1,6 +1,7 @@
 import pygame
 from maze_loader import MazeLoader
-from maze import Direction, Maze
+from maze import Maze
+from direction import Direction
 from mouse import Mouse  # oppure incolla la classe dentro lo script
 
 CELL_SIZE = 30
@@ -58,6 +59,8 @@ def try_move(mouse: Mouse, maze: Maze):
     # Move allowed
     mouse.position[0] += d.dr
     mouse.position[1] += d.dc
+
+    print(mouse.get_inputs(maze))
 
 
 def main():

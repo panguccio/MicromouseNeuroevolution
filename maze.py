@@ -1,36 +1,6 @@
 import numpy as np
-from enum import Enum
-import random
+from direction import Direction
 
-
-class Direction(Enum):
-    N, E, S, W = 0, 1, 2, 3
-
-    @property
-    def mask(self):
-        """
-        returns the bit mask for a certain direction
-            N -> 0001
-            E -> 0010
-            S -> 0100
-            W -> 1000
-        """
-        return 1 << self.value
-
-    @property
-    def dr(self):
-        """returns the shift in the row after a change"""
-        return [-1, 0, +1, 0][self.value]
-
-    @property
-    def dc(self):
-        """returns the shift in the column after a change"""
-        return [0, +1, 0, -1][self.value]
-
-    @property
-    def opposite(self):
-        """returns the opposite direction"""
-        return [Direction.S, Direction.W, Direction.N, Direction.E][self.value]
 
 class Maze:
 
@@ -80,6 +50,7 @@ class Maze:
         return self.grid[row, column]
 
 
+    # se è out of bounds row e column?
     def has_wall(self, direction: Direction, row, column):
         """checks if a cell has a wall in that direction"""
         return bool(self.grid[row, column] & direction.mask)
@@ -143,3 +114,11 @@ class Maze:
     def print_grid_values(self):
         """prints the grid values"""
         print(self.grid)
+
+    def first_wall(self, direction: Direction, row, column, max_depth=16):
+        for step in range(max_depth):
+            print(direction, row + (direction.dr * step), column + (direction.dc * step))
+            if self.has_wall(direction, row + (direction.dr * step), column + (direction.dc * step)):
+                return step
+
+
