@@ -8,6 +8,7 @@ BG_COLOR = (0, 0, 0)
 WALL_COLOR = (255, 0, 0)
 MOUSE_COLOR = (255, 255, 255)
 WALL_THICKNESS = 2
+MARGIN = 2
 
 loader = MazeLoader()
 
@@ -62,9 +63,12 @@ def try_move(mouse: Mouse, maze: Maze):
 def main():
     pygame.init()
     maze = loader.get_random_maze()
+    maze.print_grid()
     mouse = Mouse()
 
-    screen = pygame.display.set_mode((maze.size * CELL_SIZE, maze.size * CELL_SIZE))
+    screen = pygame.display.set_mode(
+        (maze.size * CELL_SIZE + MARGIN, maze.size * CELL_SIZE + MARGIN)
+    )
     pygame.display.set_caption("Micromouse Maze + Mouse")
 
     clock = pygame.time.Clock()

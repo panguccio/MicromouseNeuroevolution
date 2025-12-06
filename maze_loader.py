@@ -11,21 +11,21 @@ from maze import Maze
 
 class MazeLoader:
     def __init__(self):
-        self.base_url = "https://www.tcp4me.com/mmr/mazes/"
+        self.directory = "./mazes"
+        self.api_url = "https://api.github.com/repos/micromouseonline/mazefiles/git/trees/master?recursive=1"
+        self.base_url = "https://raw.githubusercontent.com/micromouseonline/mazefiles/master/classic/"
         self.maze_names = []
         self.load_mazes()
 
     def load_mazes(self):
-        r = requests.get(self.base_url)
-        session = requests.Session()
-        soup = BeautifulSoup(r.text, "html.parser")
+        res = requests.get(self.api_url).json()
 
         self.maze_names = [
-            a["href"] for a in soup.find_all("a", href=True)
-            if a["href"].endswith(".maze")
+            file["path"].split("/")[1] for file in res["tree"]
+            if file["path"].startswith("classic/") and file["path"].endswith(".txt")
         ]
 
-        self.directory = "./mazes"
+        session = requests.Session()
 
         if not os.path.exists(self.directory):
 
@@ -35,8 +35,11 @@ class MazeLoader:
                 path = os.path.join(self.directory, name)
                 text = session.get(self.base_url + name).text
                 text = self.fix_maze_content(text)
-                with open(path, "w") as f:
-                    f.write(text)
+                if len(text) > 15:
+                    with open(path, "w") as f:
+                        f.write(text)
+                else:
+                    print(name)
 
             with ThreadPoolExecutor(max_workers=10) as pool:
                 list(tqdm(pool.map(download_file, self.maze_names),
@@ -48,10 +51,10 @@ class MazeLoader:
     def fix_maze_content(self, text):
         """Some mazes have wrong characters, to make them uniform in representation this method replaces them."""
         mapping = {
-            '.': '+',
-            'G': '+',
+            '.': 'o',
+            'G': ' ',
             'S': ' ',
-            'A': '+'
+            'A': ' '
         }
         return ''.join(mapping.get(c, c) for c in text)
 

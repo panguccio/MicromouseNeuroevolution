@@ -50,19 +50,23 @@ class Maze:
             self._from_text(text, size)
 
     def _from_text(self, text, size):
-        line_length = size * 2 + 1  # there's a line for walls and one for cells and also new line
-        for row in range(line_length):
-            for column in range(line_length):
+        rows = size * 2 + 1
+        columns = size * 4 + 1
+        for row in range(rows):
+            for column in range(columns):
                 token = text[row][column]
                 match token:
+                    case " ":
+                        column += 3
                     case "-":
                         direction = Direction.N
-                        cell = (row // 2, column // 2)
+                        cell = (row // 2, column // 4)
                         self.add_wall(direction, *cell)
+                        column += 3
                         pass
                     case "|":
                         direction = Direction.W
-                        cell = (row // 2, column // 2)
+                        cell = (row // 2, column // 4)
                         self.add_wall(direction, *cell)
                         pass
 
