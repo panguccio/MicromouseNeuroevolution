@@ -1,0 +1,141 @@
+import numpy as np
+from enum import Enum
+import random
+
+
+class Direction(Enum):
+    N, E, S, W = 0, 1, 2, 3
+
+    @property
+    def mask(self):
+        """
+        returns the bit mask for a certain direction
+            N -> 0001
+            E -> 0010
+            S -> 0100
+            W -> 1000
+        """
+        return 1 << self.value
+
+    @property
+    def dr(self):
+        """returns the shift in the row after a change"""
+        return [-1, 0, +1, 0][self.value]
+
+    @property
+    def dc(self):
+        """returns the shift in the column after a change"""
+        return [0, +1, 0, -1][self.value]
+
+    @property
+    def opposite(self):
+        """returns the opposite direction"""
+        return [Direction.S, Direction.W, Direction.N, Direction.E][self.value]
+
+class Maze:
+
+    def __init__(self, text=None, size=16):
+        self.size = size
+        self.grid = np.zeros((size, size), dtype=np.uint8)
+        self.start_cell = (15, 0)
+        mid = size // 2
+        self.goal_cells = [
+            (mid - 1, mid - 1),  # top-left
+            (mid - 1, mid),  # top-right
+            (mid, mid),  # bottom-right
+            (mid, mid - 1)  # bottom-left
+        ]
+
+        if text is not None:
+            self._from_text(text, size)
+
+    def _from_text(self, text, size):
+        line_length = size * 2 + 1  # there's a line for walls and one for cells and also new line
+        for row in range(line_length):
+            for column in range(line_length):
+                token = text[row][column]
+                match token:
+                    case "-":
+                        direction = Direction.N
+                        cell = (row // 2, column // 2)
+                        self.add_wall(direction, *cell)
+                        pass
+                    case "|":
+                        direction = Direction.W
+                        cell = (row // 2, column // 2)
+                        self.add_wall(direction, *cell)
+                        pass
+
+    def in_bounds(self, row, column):
+        """checks if a cell is in maze bounds"""
+        return 0 <= row < self.size and 0 <= column < self.size
+
+
+    def get_walls(self, row, column):
+        """returns entire grid"""
+        return self.grid[row, column]
+
+
+    def has_wall(self, direction: Direction, row, column):
+        """checks if a cell has a wall in that direction"""
+        return bool(self.grid[row, column] & direction.mask)
+
+
+    def add_wall(self, direction: Direction, row, column):
+        """adds a wall to a cell in that direction"""
+        if self.in_bounds(row, column):
+            self.grid[row, column] |= direction.mask
+
+        # updates adjacent cell
+        new_row, new_column = row + direction.dr, column + direction.dc
+        if self.in_bounds(new_row, new_column):
+            new_side = direction.opposite
+            self.grid[new_row, new_column] |= new_side.mask
+
+
+    def add_walls(self, walls):
+        for wall in walls:
+            self.add_wall(wall[0], *wall[1:])
+
+
+    def remove_wall(self, direction: Direction, row, column):
+        """removes a wall from a cell in that direction"""
+        if not self.in_bounds(row, column):
+            return
+        self.grid[row, column] &= np.invert(direction.mask)
+
+        # updates adjacent cell
+        new_row, new_column = row + direction.dr, column + direction.dc
+        if self.in_bounds(new_row, new_column):
+            new_direction = direction.opposite
+            self.grid[new_row, new_column] &= np.invert(new_direction.mask)
+
+
+    def remove_walls(self, walls):
+        for wall in walls:
+            self.remove_wall(wall[0], *wall[1:])
+
+
+    def print_grid(self):
+        """prints the grid"""
+        size = self.size
+        for r in range(size):
+            line = "+"
+            for c in range(size):
+                line += "---+" if self.has_wall(Direction.N, r, c) else "   +"
+            print(line)
+            line = ""
+            for c in range(size):
+                line += "|" if self.has_wall(Direction.W, r, c) else " "
+                line += "   "
+            line += "|" if self.has_wall(Direction.E, r, size - 1) else " "
+            print(line)
+        line = "+"
+        for c in range(size):
+            line += "---+" if self.has_wall(Direction.S, size - 1, c) else "   +"
+        print(line)
+
+
+    def print_grid_values(self):
+        """prints the grid values"""
+        print(self.grid)
