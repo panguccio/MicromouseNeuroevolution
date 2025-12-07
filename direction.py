@@ -39,3 +39,8 @@ class Direction(Enum):
     def left(self):
         """returns the right direction"""
         return [Direction.W, Direction.N, Direction.E, Direction.S][self.value]
+
+    @property
+    def angle(self):
+        """returns the angle in radians"""
+        return [0, -90, 180, 90][self.value]

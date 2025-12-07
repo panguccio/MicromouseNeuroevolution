@@ -10,6 +10,10 @@ WALL_COLOR = (255, 0, 0)
 MOUSE_COLOR = (255, 255, 255)
 WALL_THICKNESS = 2
 MARGIN = 2
+MOUSE_IMG = pygame.image.load("mouse.png")
+MOUSE_IMG = pygame.transform.scale(MOUSE_IMG, (CELL_SIZE / 1.5, CELL_SIZE / 1.5))
+pygame.transform.rotate(MOUSE_IMG, 180)
+
 
 loader = MazeLoader()
 
@@ -43,9 +47,12 @@ def draw_mouse(screen, mouse: Mouse):
     r, c = mouse.position
     x = c * CELL_SIZE + CELL_SIZE // 2
     y = r * CELL_SIZE + CELL_SIZE // 2
-    radius = CELL_SIZE // 4
 
-    pygame.draw.circle(screen, MOUSE_COLOR, (x, y), radius)
+    angle = mouse.direction.angle
+
+    rotated = pygame.transform.rotate(MOUSE_IMG, angle)
+    rect = rotated.get_rect(center=(x, y))
+    screen.blit(rotated, rect)
 
 
 def try_move(mouse: Mouse, maze: Maze):
@@ -57,11 +64,7 @@ def try_move(mouse: Mouse, maze: Maze):
         return
 
     # Move allowed
-    mouse.position[0] += d.dr
-    mouse.position[1] += d.dc
-
-    print(mouse.get_inputs(maze))
-
+    mouse.move_ahead()
 
 def main():
     pygame.init()
@@ -87,20 +90,14 @@ def main():
             # Movimento con frecce
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_UP:
-                    mouse.redirect(Direction.N)
-                    try_move(mouse, maze)
-
-                if event.key == pygame.K_DOWN:
-                    mouse.redirect(Direction.S)
                     try_move(mouse, maze)
 
                 if event.key == pygame.K_LEFT:
-                    mouse.redirect(Direction.W)
-                    try_move(mouse, maze)
+                    mouse.turn_left()
 
                 if event.key == pygame.K_RIGHT:
-                    mouse.redirect(Direction.E)
-                    try_move(mouse, maze)
+                    mouse.turn_right()
+
 
         draw_maze(screen, maze)
         draw_mouse(screen, mouse)

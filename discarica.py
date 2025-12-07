@@ -245,3 +245,5 @@ def generate(self, seed=None, fork_chance=0.3, turn_bias=0.7):
                     leaf_cells.insert(0, (row, col, exits))
                 elif exits >= 2:
                     path_cells.append((row, col, exits))
+
+

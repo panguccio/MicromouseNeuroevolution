@@ -117,7 +117,6 @@ class Maze:
 
     def first_wall(self, direction: Direction, row, column, max_depth=16):
         for step in range(max_depth):
-            print(direction, row + (direction.dr * step), column + (direction.dc * step))
             if self.has_wall(direction, row + (direction.dr * step), column + (direction.dc * step)):
                 return step
 
