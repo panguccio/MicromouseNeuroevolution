@@ -8,6 +8,7 @@ class Maze:
         self.size = size
         self.grid = np.zeros((size, size), dtype=np.uint8)
         self.start_cell = (15, 0)
+        self.max_steps = 2 * size ** 2
         mid = size // 2
         self.goal_cells = [
             (mid - 1, mid - 1),  # top-left
@@ -44,17 +45,14 @@ class Maze:
         """checks if a cell is in maze bounds"""
         return 0 <= row < self.size and 0 <= column < self.size
 
-
     def get_walls(self, row, column):
         """returns entire grid"""
         return self.grid[row, column]
-
 
     # se è out of bounds row e column?
     def has_wall(self, direction: Direction, row, column):
         """checks if a cell has a wall in that direction"""
         return bool(self.grid[row, column] & direction.mask)
-
 
     def add_wall(self, direction: Direction, row, column):
         """adds a wall to a cell in that direction"""
@@ -67,11 +65,9 @@ class Maze:
             new_side = direction.opposite
             self.grid[new_row, new_column] |= new_side.mask
 
-
     def add_walls(self, walls):
         for wall in walls:
             self.add_wall(wall[0], *wall[1:])
-
 
     def remove_wall(self, direction: Direction, row, column):
         """removes a wall from a cell in that direction"""
@@ -85,11 +81,9 @@ class Maze:
             new_direction = direction.opposite
             self.grid[new_row, new_column] &= np.invert(new_direction.mask)
 
-
     def remove_walls(self, walls):
         for wall in walls:
             self.remove_wall(wall[0], *wall[1:])
-
 
     def print_grid(self):
         """prints the grid"""
@@ -110,7 +104,6 @@ class Maze:
             line += "---+" if self.has_wall(Direction.S, size - 1, c) else "   +"
         print(line)
 
-
     def print_grid_values(self):
         """prints the grid values"""
         print(self.grid)
@@ -120,4 +113,7 @@ class Maze:
             if self.has_wall(direction, row + (direction.dr * step), column + (direction.dc * step)):
                 return step
 
-
+    def distance_from_goal(self, pointed_cell):
+        # the manhattan distance from the closest goal cell
+        return min(sum(abs(coord1 - coord2) for coord1, coord2 in zip(pointed_cell, goal_cell)) for goal_cell in
+                   self.goal_cells)

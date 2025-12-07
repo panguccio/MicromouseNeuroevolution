@@ -4,14 +4,16 @@ from direction import Direction
 
 class Mouse:
 
-    def __init__(self, start_position=(15, 0)):
+    def __init__(self, start_position, max_steps):
         self.position = start_position
         self.direction = Direction.N
         self.visited = set()
         self.alive = True
+        self.arrived = False
         self.ahead_sight = 3
         self.lateral_sight = 1
         self.steps = 0
+        self.max_steps = max_steps
 
     # ---
     # Input processing
@@ -62,21 +64,29 @@ class Mouse:
         self.move_ahead()
         self.turn_left()
         self.move_ahead()
-        self.steps -= 1.5 # so that it costs just like moving ahead
+        self.steps -= 1 # so that it costs just 0.5 more than moving ahead
 
     def move_diagonally_right(self):
         self.move_ahead()
         self.turn_right()
         self.move_ahead()
-        self.steps -= 1.5
+        self.steps -= 1
 
-    # ---
-    # Status
-    # ---
+    def act(self, action, maze):
+        match action:
+            case 0:
+                self.move_ahead()
+            case 1:
+                self.turn_left()
+            case 2:
+                self.turn_right()
+            case 3:
+                self.move_diagonally_left()
+            case 4:
+                self.move_diagonally_right()
+        if self.position in maze.goal_cells:
+            self.alive = False
+            self.arrived = True
+        if self.steps >= self.max_steps:
+            self.alive = False
 
-    def die(self):
-        self.alive = False
-
-    def last_position(self):
-        if not self.alive:
-            return self.position

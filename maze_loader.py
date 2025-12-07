@@ -66,5 +66,11 @@ class MazeLoader:
         f = open(self.directory + "/" + name, "r")
         return Maze(f.readlines())
 
+    def get_random_mazes(self, quantity=10):
+        mazes = []
+        for i in range(quantity):
+            mazes.append(self.get_random_maze())
+        return mazes
+
     def get_all_mazes(self):
         return self.maze_names
