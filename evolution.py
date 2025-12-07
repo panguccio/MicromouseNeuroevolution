@@ -24,7 +24,6 @@ def eval_genomes(genomes, config):
 
             while mouse.alive and mouse.steps < mouse.max_steps:
                 inputs = mouse.get_inputs(maze)
-                print(inputs)
                 outputs = net.activate(inputs)
                 action = outputs.index(max(outputs))
                 mouse.act(action, maze)

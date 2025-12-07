@@ -110,8 +110,10 @@ class Maze:
 
     def first_wall(self, direction: Direction, row, column, max_depth=16):
         for step in range(max_depth):
-            if self.has_wall(direction, row + (direction.dr * step), column + (direction.dc * step)):
-                return step
+            cell = row + (direction.dr * step), column + (direction.dc * step)
+            if self.in_bounds(*cell):
+                if self.has_wall(direction, *cell):
+                    return step
 
     def distance_from_goal(self, pointed_cell):
         # the manhattan distance from the closest goal cell

@@ -39,7 +39,7 @@ class Mouse:
     def sense(self, maze: Maze, direction, sight):
         if not self.alive:
             return 0
-        return maze.first_wall(direction, *self.position, sight)
+        return maze.first_wall(direction, *self.position, sight) or maze.size
 
     # ---
     # Movement
