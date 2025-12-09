@@ -1,4 +1,9 @@
 import pygame
+import neat
+import pickle
+import os
+
+import evolution
 from maze_loader import MazeLoader
 from maze import Maze
 from direction import Direction
@@ -7,15 +12,24 @@ from mouse import Mouse  # oppure incolla la classe dentro lo script
 CELL_SIZE = 30
 BG_COLOR = (0, 0, 0)
 WALL_COLOR = (255, 0, 0)
-MOUSE_COLOR = (255, 255, 255)
 WALL_THICKNESS = 2
-MARGIN = 2
 MOUSE_IMG = pygame.image.load("mouse.png")
-MOUSE_IMG = pygame.transform.scale(MOUSE_IMG, (CELL_SIZE / 1.5, CELL_SIZE / 1.5))
-pygame.transform.rotate(MOUSE_IMG, 180)
+MOUSE_IMG = pygame.transform.scale(MOUSE_IMG, (CELL_SIZE // 1.5, CELL_SIZE // 1.5))
 
+path = os.path.join("nets", "winner_genome.pkl")
 
-loader = MazeLoader()
+def load_best_network(config_path="config-neat.ini", genome_path=path):
+    config = neat.Config(
+        neat.DefaultGenome,
+        neat.DefaultReproduction,
+        neat.DefaultSpeciesSet,
+        neat.DefaultStagnation,
+        config_path
+    )
+    with open(genome_path, "rb") as f:
+        genome = pickle.load(f)
+    net = neat.nn.FeedForwardNetwork.create(genome, config)
+    return net
 
 
 def draw_maze(screen, maze: Maze):
@@ -26,7 +40,6 @@ def draw_maze(screen, maze: Maze):
             x = c * CELL_SIZE
             y = r * CELL_SIZE
 
-            # Parete Nord
             if maze.has_wall(Direction.N, r, c):
                 pygame.draw.line(screen, WALL_COLOR, (x, y), (x + CELL_SIZE, y), WALL_THICKNESS)
 
@@ -48,67 +61,73 @@ def draw_mouse(screen, mouse: Mouse):
     x = c * CELL_SIZE + CELL_SIZE // 2
     y = r * CELL_SIZE + CELL_SIZE // 2
 
-    angle = mouse.direction.angle
-
-    rotated = pygame.transform.rotate(MOUSE_IMG, angle)
+    rotated = pygame.transform.rotate(MOUSE_IMG, mouse.direction.angle)
     rect = rotated.get_rect(center=(x, y))
     screen.blit(rotated, rect)
 
 
-def try_move(mouse: Mouse, maze: Maze):
-    r, c = mouse.position
-    d = mouse.direction
 
-    # Se c'è un muro, blocca
-    if maze.has_wall(d, r, c):
-        return
-
-    # Move allowed
-    mouse.move_ahead()
 
 def main():
     pygame.init()
-    maze = loader.get_random_maze()
-    maze.print_grid()
-    mouse = Mouse()
+    loader = MazeLoader()
+    maze = loader.get_maze("yama7.txt")
 
-    screen = pygame.display.set_mode(
-        (maze.size * CELL_SIZE + MARGIN, maze.size * CELL_SIZE + MARGIN)
-    )
-    pygame.display.set_caption("Micromouse Maze + Mouse")
+    net = load_best_network()
 
+    mouse = Mouse(maze.start_cell, maze.size ** 2)
+
+    screen = pygame.display.set_mode((maze.size * CELL_SIZE, maze.size * CELL_SIZE))
     clock = pygame.time.Clock()
     running = True
 
     while running:
-        screen.fill(BG_COLOR)
-
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
+                # Movimento con frecce
 
-            # Movimento con frecce
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_UP:
-                    try_move(mouse, maze)
-
-                if event.key == pygame.K_LEFT:
-                    mouse.turn_left()
-
-                if event.key == pygame.K_RIGHT:
-                    mouse.turn_right()
-
-
+            # move_with_keys(event, maze, mouse)
+        move_with_network(maze, mouse, net)
+        screen.fill(BG_COLOR)
         draw_maze(screen, maze)
         draw_mouse(screen, mouse)
 
         pygame.display.flip()
-        clock.tick(30)
+        clock.tick(5)
+
+    print(mouse.compute_fitness(maze, novelty_score(mouse.position)))
 
     pygame.quit()
 
+
+def move_with_keys(event, maze, mouse):
+    if event.type == pygame.KEYDOWN:
+
+        if event.key == pygame.K_UP:
+            mouse.act(0, maze)
+
+        if event.key == pygame.K_LEFT:
+            mouse.act(1, maze)
+
+        if event.key == pygame.K_RIGHT:
+            mouse.act(2, maze)
+
+        if event.key == pygame.K_a:
+            mouse.act(3, maze)
+
+        if event.key == pygame.K_d:
+            mouse.act(4, maze)
+
+
+
+def move_with_network(maze, mouse, net):
+    if mouse.alive:
+        inputs = mouse.get_inputs(maze)
+        outputs = net.activate(inputs)
+        action = outputs.index(max(outputs))
+        mouse.act(action, maze)
+
+
 if __name__ == "__main__":
     main()
-
-
-

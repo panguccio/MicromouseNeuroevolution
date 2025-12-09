@@ -1,39 +1,60 @@
+import math
+import operator
 import os
+import shutil
+import statistics
+
 import neat
 import visualize
 
+import maze as mz
+from maze import Maze
 from maze_loader import MazeLoader
 from mouse import Mouse
 
 loader = MazeLoader()
+best_genome = None
+best_fitness = float('-inf')
 
 
-def compute_fitness(mouse, maze):
-    distance_score = maze.distance_from_goal(mouse.position)/(maze.size - 2) # max: 14
-    steps_score = mouse.steps/mouse.max_steps
-    return 1 / (1 + distance_score + steps_score)
-
+def novelty_score(mouse_position, final_positions, k=30):
+    distances = [mz.distance(mouse_position, pos) for pos in final_positions]
+    k_nearest = sorted(distances)[:k]
+    final_positions.append(mouse_position)
+    return sum(k_nearest) / len(k_nearest) if k_nearest else 0
 
 def eval_genomes(genomes, config):
-    mazes = loader.get_random_mazes()
+    global best_fitness
+    global best_genome
+    final_positions = []
+    mazes = [loader.get_maze("yama7.txt")]
     for genome_id, genome in genomes:
         net = neat.nn.FeedForwardNetwork.create(genome, config)
         total_fitness = 0
         for maze in mazes:
             mouse = Mouse(maze.start_cell, maze.size**2)
 
-            while mouse.alive and mouse.steps < mouse.max_steps:
+            while mouse.alive and mouse.steps < mouse.max_steps and mouse.costs < mouse.max_steps:
                 inputs = mouse.get_inputs(maze)
                 outputs = net.activate(inputs)
                 action = outputs.index(max(outputs))
                 mouse.act(action, maze)
-        
-            total_fitness += compute_fitness(mouse, maze)
+
+            total_fitness += mouse.compute_fitness(maze, novelty_score(mouse.position, final_positions, 20))
         
         genome.fitness = total_fitness / len(mazes)
 
+        if genome.fitness > best_fitness:
+            best_fitness = genome.fitness
+            best_genome = genome
 
 def run(config_file):
+    directory = "nets"
+    if os.path.exists(directory):
+        shutil.rmtree(directory)
+    os.makedirs(directory, exist_ok=True)
+
+
     # Load configuration
     config = neat.Config(
         neat.DefaultGenome,
@@ -50,10 +71,11 @@ def run(config_file):
     p.add_reporter(neat.StdOutReporter(True))
     stats = neat.StatisticsReporter()
     p.add_reporter(stats)
-    p.add_reporter(neat.Checkpointer(10))  # salva ogni 10 gen
+    p.add_reporter(neat.Checkpointer(10, None, os.path.join(directory, 'neat-checkpoint-')))  # salva ogni 10 gen
 
     # Run evoluzione
-    winner = p.run(eval_genomes, 200)
+    winner = p.run(eval_genomes, 10)
+    winner = best_genome
 
     print("\n=== Best Genome ===")
     print(winner)
@@ -62,7 +84,8 @@ def run(config_file):
     net = neat.nn.FeedForwardNetwork.create(winner, config)
 
     # Salvataggio finale
-    with open("winner_genome.pkl", "wb") as f:
+    path = os.path.join(directory, "winner_genome.pkl")
+    with open(path, "wb") as f:
         import pickle
         pickle.dump(winner, f)
 

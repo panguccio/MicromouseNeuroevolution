@@ -117,5 +117,13 @@ class Maze:
 
     def distance_from_goal(self, pointed_cell):
         # the manhattan distance from the closest goal cell
-        return min(sum(abs(coord1 - coord2) for coord1, coord2 in zip(pointed_cell, goal_cell)) for goal_cell in
-                   self.goal_cells)
+        return min(distance(pointed_cell, goal_cell) for goal_cell in self.goal_cells)
+
+
+
+    def is_in_goal(self, pointed_cell):
+        return pointed_cell in self.goal_cells
+
+
+def distance(cell_a, cell_b):
+    return abs(cell_a[0] - cell_b[0]) + abs(cell_a[1] - cell_b[1])

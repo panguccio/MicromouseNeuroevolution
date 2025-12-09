@@ -14,6 +14,7 @@ class Mouse:
         self.lateral_sight = 1
         self.steps = 0
         self.max_steps = max_steps
+        self.costs = 0
 
     # ---
     # Input processing
@@ -21,6 +22,7 @@ class Mouse:
 
     def get_inputs(self, maze: Maze):
         x, y = self.position
+        s = maze.size
         return [x, y, self.sense_ahead(maze), self.sense_left(maze), self.sense_right(maze)]
 
     # ---
@@ -46,47 +48,72 @@ class Mouse:
     # ---
 
     def turn_left(self):
-        if self.alive:
-            self.direction = self.direction.left
-            self.steps += 0.5
+        self.costs += 1
+        self.direction = self.direction.left
+
 
     def turn_right(self):
-        if self.alive:
-            self.direction = self.direction.right
-            self.steps += 0.5
+        self.costs += 1
+        self.direction = self.direction.right
 
-    def move_ahead(self):
-        if self.alive:
-            self.position = (self.position[0] + self.direction.dr, self.position[1] + self.direction.dc)
-            self.steps += 1
+    def increment_path(self, position):
+        self.steps += 1
+        if position not in self.visited:
+            self.visited.add(position)
 
-    def move_diagonally_left(self):
-        self.move_ahead()
+
+    def move_ahead(self, maze: Maze):
+        self.costs += 1
+        r, c = self.position
+        d = self.direction
+        if maze.has_wall(d, r, c):
+            self.costs += 5
+            return
+        self.position = (self.position[0] + self.direction.dr, self.position[1] + self.direction.dc)
+        self.increment_path(self.position)
+
+    """
+    def move_diagonally_left(self, maze: Maze):
+        r, c = self.position
+        d = self.direction
+        if maze.has_wall(d, r, c):
+            self.costs += 5
+            return
+        self.steps += 1.5
+        self.move_ahead(maze)
         self.turn_left()
-        self.move_ahead()
-        self.steps -= 1 # so that it costs just 0.5 more than moving ahead
+        self.move_ahead(maze)
 
-    def move_diagonally_right(self):
-        self.move_ahead()
+    def move_diagonally_right(self, maze: Maze):
+        r, c = self.position
+        d = self.direction
+        if maze.has_wall(d, r, c):
+            self.costs += 5
+            return
+        self.steps += 1.5
+        self.move_ahead(maze)
         self.turn_right()
-        self.move_ahead()
-        self.steps -= 1
-
-    def act(self, action, maze):
+        self.move_ahead(maze)
+        self.steps -= 2.5
+    """
+    def act(self, action, maze: Maze):
         match action:
             case 0:
-                self.move_ahead()
+                self.move_ahead(maze)
             case 1:
                 self.turn_left()
             case 2:
                 self.turn_right()
-            case 3:
-                self.move_diagonally_left()
-            case 4:
-                self.move_diagonally_right()
-        if self.position in maze.goal_cells:
+        if maze.is_in_goal(self.position):
             self.alive = False
             self.arrived = True
         if self.steps >= self.max_steps:
             self.alive = False
+
+    def compute_fitness(self, maze, novelty_score, a=-0.53, b=0.96):
+        distance = maze.distance_from_goal(self.position)
+        if self.arrived:
+            return 1000 + (1000 / 1 + self.steps)
+        return a * 1/distance + b * novelty_score
+
 
