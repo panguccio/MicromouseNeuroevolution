@@ -16,7 +16,7 @@ class Mouse:
         self.steps = 0
         self.max_steps = max_steps
         self.costs = 0
-        self.fitness = 0
+        self.fitness = None
         self.last_action = None
         self.last_inputs = []
         self.last_position = self.position
@@ -121,12 +121,15 @@ class Mouse:
             self.costs += 20
             return
 
-    def compute_fitness(self, maze, novelty_score, a=0.53, b=0.96, c=0.5):
-        distance = maze.distance_from_goal(self.position)
+        self.last_position = self.position
 
-        # Se è arrivato al goal, fitness massima!
+    def compute_distance_fitness(self, maze, weight):
         if self.arrived:
-            self.fitness = 10000 + (1000 / 1 + self.steps / 10) - c * self.costs
+            self.fitness = 10000 + (1000 / (self.steps / 10))
         else:
-            self.fitness = a * 100 / distance + b * novelty_score * 50 - c * self.costs
-        return max(0, self.fitness)
+            self.fitness = 1 / maze.distance_from_goal(self.position)
+        self.fitness -= weight * self.costs
+        return self.fitness
+
+
+

@@ -18,16 +18,17 @@ class MazeLoader:
         self.load_mazes()
 
     def load_mazes(self):
-        res = requests.get(self.api_url).json()
-
-        self.maze_names = [
-            file["path"].split("/")[1] for file in res["tree"]
-            if file["path"].startswith("classic/") and file["path"].endswith(".txt")
-        ]
-
-        session = requests.Session()
 
         if not os.path.exists(self.directory):
+
+            res = requests.get(self.api_url).json()
+
+            self.maze_names = [
+                file["path"].split("/")[1] for file in res["tree"]
+                if file["path"].startswith("classic/") and file["path"].endswith(".txt")
+            ]
+
+            session = requests.Session()
 
             os.makedirs(self.directory, exist_ok=True)
 
@@ -45,6 +46,11 @@ class MazeLoader:
                 list(tqdm(pool.map(download_file, self.maze_names),
                           total=len(self.maze_names),
                           desc="Downloading mazes"))
+        else:
+            self.maze_names = [
+                file for file in os.listdir(os.path.join(self.directory))
+            ]
+
 
 
 
