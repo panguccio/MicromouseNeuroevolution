@@ -15,6 +15,12 @@ class Mouse:
         self.steps = 0
         self.max_steps = max_steps
         self.costs = 0
+        self.fitness = 0
+        self.last_action = None
+        self.last_inputs = []
+        self.last_position = self.position
+        self.stuck_counter = 0
+        self.stuck = False
 
     # ---
     # Input processing
@@ -104,16 +110,28 @@ class Mouse:
                 self.turn_left()
             case 2:
                 self.turn_right()
-        if maze.is_in_goal(self.position):
-            self.alive = False
-            self.arrived = True
-        if self.steps >= self.max_steps:
-            self.alive = False
 
-    def compute_fitness(self, maze, novelty_score, a=-0.53, b=0.96):
+        self.alive = not (
+                maze.is_in_goal(self.position)
+                or self.steps >= self.max_steps
+                or self.stuck_counter > 20
+        )
+        if self.position == self.last_position:
+            self.stuck_counter += 1
+        else:
+            self.stuck_counter = 0
+        self.last_position = self.position
+        if self.stuck_counter > 20:
+            self.stuck = True
+        if maze.is_in_goal(self.position):
+            self.arrived = True
+
+    def compute_fitness(self, maze, novelty_score, a=0.53, b=0.96):
         distance = maze.distance_from_goal(self.position)
         if self.arrived:
             return 1000 + (1000 / 1 + self.steps)
-        return a * 1/distance + b * novelty_score
+
+        self.fitness = a * 1/distance + b * novelty_score
+        return self.fitness
 
 

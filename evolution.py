@@ -8,13 +8,13 @@ import neat
 import visualize
 
 import maze as mz
+import simulation
 from maze import Maze
 from maze_loader import MazeLoader
 from mouse import Mouse
 
 loader = MazeLoader()
-best_genome = None
-best_fitness = float('-inf')
+generation = 1
 
 
 def novelty_score(mouse_position, final_positions, k=30):
@@ -24,10 +24,11 @@ def novelty_score(mouse_position, final_positions, k=30):
     return sum(k_nearest) / len(k_nearest) if k_nearest else 0
 
 def eval_genomes(genomes, config):
-    global best_fitness
-    global best_genome
+    global generation
+    best_genome = None
+    best_fitness = float('-inf')
     final_positions = []
-    mazes = [loader.get_maze("yama7.txt")]
+    mazes = [loader.get_random_maze()]
     for genome_id, genome in genomes:
         net = neat.nn.FeedForwardNetwork.create(genome, config)
         total_fitness = 0
@@ -47,6 +48,9 @@ def eval_genomes(genomes, config):
         if genome.fitness > best_fitness:
             best_fitness = genome.fitness
             best_genome = genome
+
+    simulation.run(mazes, best_genome, best_fitness, generation, config)
+    generation += 1
 
 def run(config_file):
     directory = "nets"
@@ -74,8 +78,7 @@ def run(config_file):
     p.add_reporter(neat.Checkpointer(10, None, os.path.join(directory, 'neat-checkpoint-')))  # salva ogni 10 gen
 
     # Run evoluzione
-    winner = p.run(eval_genomes, 10)
-    winner = best_genome
+    winner = p.run(eval_genomes, 1000)
 
     print("\n=== Best Genome ===")
     print(winner)
