@@ -1,27 +1,41 @@
+import maze as mz
 from maze import Maze
 from direction import Direction
 
 
 class Mouse:
 
-    def __init__(self, start_position, max_steps):
+    def __init__(self, start_position=(15,0), max_steps=16**2, maze_count=10):
+        # STATUS AND CHARACTERISTICS
+        self.alive = True
         self.position = start_position
         self.direction = Direction.N
-        self.visited = set()
-        self.visited.add(start_position)  # Aggiungi posizione iniziale
-        self.alive = True
         self.arrived = False
         self.ahead_sight = 3
         self.lateral_sight = 1
+
+        # FOR COST COMPUTATION
         self.steps = 0
         self.max_steps = max_steps
-        self.costs = 0
-        self.fitness = None
+        self.cost = 0
+        # NOT USED YET
+        self.visited = set()
+        self.visited.add(start_position)
+        # STUCK CONTROL
         self.last_action = None
         self.last_inputs = []
         self.last_position = self.position
         self.stuck_counter = 0
         self.stuck = False
+
+        # GENETICS
+        self.genome = None
+        self.net = None
+        self.distance_scores_values = []
+        self.novelty_scores_values = []
+        self.costs = []
+        self.fitness_values = [0] * maze_count
+        self.fitness = 0
 
     # ---
     # Input processing
@@ -80,11 +94,11 @@ class Mouse:
 
         # checks if there's a wall
         if maze.has_wall(d, r, c):
-            self.costs += 5
+            self.cost += 5
             return
 
         # moves
-        self.costs += 1
+        self.cost += 1
         self.position = (r + self.direction.dr, c + self.direction.dc)
         self.increment_path(self.position)
 
@@ -118,18 +132,36 @@ class Mouse:
         if self.stuck_counter > 20:
             self.stuck = True
             self.alive = False
-            self.costs += 20
+            self.cost += 20
             return
 
         self.last_position = self.position
 
-    def compute_distance_fitness(self, maze, weight):
+    # ---
+    # Fitness
+    # ---
+
+    def compute_distance_score(self, distance):
         if self.arrived:
-            self.fitness = 10000 + (1000 / (self.steps / 10))
+            score = 10000 + (1000 / (self.steps / 10))
         else:
-            self.fitness = 1 / maze.distance_from_goal(self.position)
-        self.fitness -= weight * self.costs
-        return self.fitness
+            score = (1 / distance)
+        self.distance_scores_values.append(score)
 
+    def compute_cost(self):
+        self.costs.append(self.cost)
 
+    def compute_novelty_score(self, others_positions, max_value, k):
+        distances = [mz.distance(self.position, position) for position in others_positions]
+        k_nearest = sorted(distances)[:min(k, len(distances))]
+        score = sum(k_nearest) / len(k_nearest) if k_nearest else max_value
+        self.novelty_scores_values.append(score)
 
+    def compute_fitness_score(self, distance_weight, novelty_weight, cost_weight):
+        for i in range(len(self.fitness_values)):
+            distance_score = self.distance_scores_values[i]
+            cost = self.costs[i]
+            novelty_score = self.novelty_scores_values[i]
+            fitness = distance_weight * distance_score + novelty_weight * novelty_score - cost_weight *  cost
+            self.fitness_values[i] = max(fitness, 0)
+        self.fitness = sum(self.fitness_values) / len(self.fitness_values)

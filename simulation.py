@@ -4,6 +4,7 @@ import pickle
 import os
 from maze import Maze
 from direction import Direction
+from maze_loader import MazeLoader
 from mouse import Mouse
 
 CELL_SIZE = 30
@@ -12,10 +13,19 @@ WALL_COLOR = (255, 0, 0)
 WALL_THICKNESS = 2
 MOUSE_IMG = pygame.image.load("mouse.png")
 MOUSE_IMG = pygame.transform.scale(MOUSE_IMG, (CELL_SIZE // 1.5, CELL_SIZE // 1.5))
-path = os.path.join("nets", "winner_genome.pkl")
+genome_path = os.path.join("nets", "winner_genome.pkl")
+loader = MazeLoader()
+config_path = os.path.join(os.path.dirname(__file__), 'config-neat.ini')
 
 
-def load_best_network(config_path="config-neat.ini", genome_path=path):
+def load_best_network(config):
+    with open(genome_path, "rb") as f:
+        genome = pickle.load(f)
+    net = neat.nn.FeedForwardNetwork.create(genome, config)
+    return net
+
+
+def configure():
     config = neat.Config(
         neat.DefaultGenome,
         neat.DefaultReproduction,
@@ -23,10 +33,7 @@ def load_best_network(config_path="config-neat.ini", genome_path=path):
         neat.DefaultStagnation,
         config_path
     )
-    with open(genome_path, "rb") as f:
-        genome = pickle.load(f)
-    net = neat.nn.FeedForwardNetwork.create(genome, config)
-    return net
+    return config
 
 
 def draw_maze(screen, maze: Maze, offset_x=0, offset_y=0):
@@ -63,7 +70,7 @@ def draw_mouse(screen, mouse: Mouse, offset_x=0, offset_y=0):
     screen.blit(rotated, rect)
 
 
-def draw_stats(screen, maze: Maze, mouse: Mouse, stats_width, maze_width, screen_height, generation):
+def draw_stats(screen, mouse: Mouse, stats_width, maze_width, screen_height, generation):
     # Pannello statistiche a destra del labirinto
     panel_x = maze_width + 20
     panel_width = stats_width - 40
@@ -93,8 +100,7 @@ def draw_stats(screen, maze: Maze, mouse: Mouse, stats_width, maze_width, screen
     stats = [
         ("Generation:", str(generation), (255, 255, 0)),
         ("Steps:", str(mouse.steps), (255, 255, 255)),
-        ("Alive:", str(mouse.alive), (255, 255, 0)),
-        ("Fitness:", f"{mouse.fitness:.2f}", (255, 100, 100)),
+        ("Alive:", str(mouse.alive), (255, 255, 0))
     ]
 
     for label, value, color in stats:
@@ -142,51 +148,53 @@ def draw_stats(screen, maze: Maze, mouse: Mouse, stats_width, maze_width, screen
         screen.blit(inputs_surf, (panel_x + 10, y_offset))
 
 
-def run(mazes, best_genome, best_fitness, generation, config):
+def run(mouse_net=None, generation=None, maze=None):
+
     pygame.init()
+    mouse = Mouse()
+    if mouse_net is None:
+        mouse_net = load_best_network(configure())
+    mouse.net = mouse_net
+    pygame.display.set_caption(f"MicroMouse Optimization - Generation {generation}")
 
-    net = neat.nn.FeedForwardNetwork.create(best_genome, config)
+    if maze is None:
+        maze = loader.get_random_maze()
 
-    for maze in mazes:
-        mouse = Mouse(maze.start_cell, maze.size ** 2)
-        mouse.fitness = best_fitness
+    # Calcola dimensioni finestra
+    maze_width = maze.size * CELL_SIZE
+    maze_height = maze.size * CELL_SIZE
+    stats_width = 300  # Larghezza pannello statistiche
 
-        # Calcola dimensioni finestra
-        maze_width = maze.size * CELL_SIZE
-        maze_height = maze.size * CELL_SIZE
-        stats_width = 300  # Larghezza pannello statistiche
+    screen_width = maze_width + stats_width + 20
+    screen_height = max(maze_height, 450)  # Altezza minima per statistiche
 
-        screen_width = maze_width + stats_width + 20
-        screen_height = max(maze_height, 450)  # Altezza minima per statistiche
+    screen = pygame.display.set_mode((screen_width, screen_height))
 
-        screen = pygame.display.set_mode((screen_width, screen_height))
-        pygame.display.set_caption(f"Maze AI - Generation {generation}")
 
-        # Offset per centrare il labirinto verticalmente
-        maze_offset_y = (screen_height - maze_height) // 2
+    # Offset per centrare il labirinto verticalmente
+    maze_offset_y = (screen_height - maze_height) // 2
 
-        clock = pygame.time.Clock()
+    clock = pygame.time.Clock()
 
-        while mouse.alive:
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    mouse.alive = False
-                # Movimento con frecce (opzionale)
-                # move_with_keys(event, maze, mouse)
+    while mouse.alive:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
+                mouse.alive = False
+            # Movimento con frecce (opzionale)
+            # move_with_keys(event, maze, mouse)
 
-            move_with_network(maze, mouse, net)
+        move_with_network(maze, mouse)
 
-            # Disegna tutto
-            screen.fill(BG_COLOR)
-            draw_maze(screen, maze, offset_x=10, offset_y=maze_offset_y)
-            draw_mouse(screen, mouse, offset_x=10, offset_y=maze_offset_y)
-            draw_stats(screen, maze, mouse, stats_width, maze_width, screen_height, generation)
+        # Disegna tutto
+        screen.fill(BG_COLOR)
+        draw_maze(screen, maze, offset_x=10, offset_y=maze_offset_y)
+        draw_mouse(screen, mouse, offset_x=10, offset_y=maze_offset_y)
+        draw_stats(screen, mouse, stats_width, maze_width, screen_height, generation)
 
-            pygame.display.flip()
-            clock.tick(5)
-
+        pygame.display.flip()
         clock.tick(10)
-        print(f"Mouse fitness in generation {generation}: {best_fitness}")
 
 
 def move_with_keys(event, maze, mouse):
@@ -203,13 +211,13 @@ def move_with_keys(event, maze, mouse):
             mouse.act(4, maze)
 
 
-def move_with_network(maze, mouse, net):
+def move_with_network(maze, mouse):
     inputs = mouse.get_inputs(maze)
-    outputs = net.activate(inputs)
+    outputs = mouse.net.activate(inputs)
     action = outputs.index(max(outputs))
-
     mouse.last_inputs = inputs
     mouse.last_action = action
-
     mouse.act(action, maze)
 
+if __name__ == '__main__':
+    run()

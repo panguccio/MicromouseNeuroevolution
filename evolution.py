@@ -1,129 +1,82 @@
-import math
-import operator
 import os
 import shutil
-import statistics
-from ftplib import print_line
-
 import neat
-import visualize
 
-import maze as mz
 import simulation
-from maze import Maze
 from maze_loader import MazeLoader
 from mouse import Mouse
 
 loader = MazeLoader()
-generation = 1
+generation = 0
 
-# AGGIUNTO: Struttura per salvare statistiche
-evolution_stats = {
-    'generations': [],
-    'novelty_scores': [],
-    'final_positions': [],
-    'best_fitness': [],
-    'avg_fitness': []
-}
 MAX_NOVELTY_SCORE = 14
-COST_WEIGHT = 0
-DISTANCE_WEIGHT = 1#53
-NOVELTY_WEIGHT = 1#96
+COST_WEIGHT = 0 # 2
+DISTANCE_WEIGHT = .53
+NOVELTY_WEIGHT = .96
+K = 4
+NUM_GENERATIONS = 200
 
-def compute_novelty_score(genome_id, genome_final_positions, k=15):
-    # [(genoma, last_position),...]
-    mouse_position = next(pos for gid, pos in genome_final_positions if gid == genome_id)
-    final_positions = [pair[1] for pair in genome_final_positions]
+bestest_mouse = Mouse()
 
-    distances = [mz.distance(mouse_position, pos) for pos in final_positions]
-    k_nearest = sorted(distances)[:min(k, len(distances))]
-    return sum(k_nearest) / len(k_nearest) if k_nearest else MAX_NOVELTY_SCORE
+
 
 def eval_genomes(genomes, config):
-    global generation
-    best_genome = None
-    best_fitness = float('-inf')
+    global generation, bestest_mouse
+    best_mouse = Mouse()
 
-    mazes = [loader.get_random_maze()]
+    mazes = loader.get_random_mazes(10)
+    mice = {}
 
-    # Per statistiche della generazione
-    gen_novelty_scores = []
-    gen_final_positions = []
-    gen_fitnesses = []
-
+    # creates the population of mice, linking them to the genomes
+    for genome_id, genome in genomes:
+        mice[genome_id] = Mouse(mazes[0].start_cell, mazes[0].size ** 2, len(mazes))
+        mice[genome_id].genome = genome
 
     for maze in mazes:
-        genome_final_positions = []  # Reset per ogni labirinto
 
-        genome_count = 0
+        # 1. try to solve the maze
         for genome_id, genome in genomes:
-            genome_count += 1
-            net = neat.nn.FeedForwardNetwork.create(genome, config)
-            mouse = Mouse(maze.start_cell, maze.size ** 2 * 3)
+            mouse = mice[genome_id]
+            mouse.net = neat.nn.FeedForwardNetwork.create(genome, config)
 
             while mouse.alive:
+                inputs = mouse.get_inputs(maze)
+                outputs = mouse.net.activate(inputs)
+                action = outputs.index(max(outputs))
+                mouse.act(action, maze)
 
-                try:
-                    inputs = mouse.get_inputs(maze)
-                    outputs = net.activate(inputs)
-                    action = outputs.index(max(outputs))
-                    mouse.act(action, maze)
-                except Exception as e:
-                    print(f"❌ Error during activation: {e}")
-                    print(f"Inputs: {inputs}")
-                    mouse.alive = False
-                    break
+            # 2. calculate the first fitness component (distance, cost)
+            distance = maze.distance_from_goal(mouse.position)
+            mouse.compute_distance_score(distance)
+            mouse.compute_cost()
 
-            genome_final_positions.append((genome_id, mouse.last_position))
-            gen_final_positions.append(mouse.last_position)
-
-            # Calcola la prima fitness
-            fitness = mouse.compute_distance_fitness(maze, COST_WEIGHT)
-
-            genome.fitness = fitness
-
-        for i in genome_final_positions:
-            print(i)
-
+        # 3. after everyone's done with the maze, calculate the second fitness component (novelty)
         for genome_id, genome in genomes:
+            mouse = mice[genome_id]
+            others_positions = [mice[gid].position for gid, g in genomes
+                                if gid != genome_id]
+            mouse.compute_novelty_score(others_positions, MAX_NOVELTY_SCORE, K)
 
-            distance_score = genome.fitness
-            novelty_score = compute_novelty_score(genome_id, genome_final_positions)
-            gen_novelty_scores.append(novelty_score)
-
-            fitness = DISTANCE_WEIGHT * distance_score + NOVELTY_WEIGHT * novelty_score
-            genome.fitness = max(fitness, 0)
-            gen_fitnesses.append(genome.fitness)
-
-    # Media fitness su tutti i labirinti
+    # 4. after all mazes, compute the final fitness
     for genome_id, genome in genomes:
-        genome.fitness = genome.fitness / len(mazes)
+        mouse = mice[genome_id]
+        mouse.compute_fitness_score(DISTANCE_WEIGHT, NOVELTY_WEIGHT, COST_WEIGHT)
+        genome.fitness = mouse.fitness
 
-        if genome.fitness > best_fitness:
-            best_fitness = genome.fitness
-            best_genome = genome
+        # update the best individual of all
+        if genome.fitness > best_mouse.fitness:
+            best_mouse = mice[genome_id]
+            if genome.fitness > bestest_mouse.fitness:
+                bestest_mouse = mice[genome_id]
 
-    # Salva statistiche della generazione
-    avg_fitness = statistics.mean(gen_fitnesses) if gen_fitnesses else 0
-    evolution_stats['generations'].append({
-        'generation': generation,
-        'novelty_scores': gen_novelty_scores.copy(),
-        'final_positions': gen_final_positions.copy(),
-        'best_fitness': best_fitness,
-        'avg_fitness': avg_fitness,
-        'num_genomes': len(genomes)
-    })
-
-    # Stampa statistiche
-    print_generation_stats(generation, gen_novelty_scores, gen_final_positions, gen_fitnesses)
-
-    # Visualizza solo il migliore ogni 5 generazioni
-    if best_genome and generation % 5 == 0:
-        print(f"\n🎬 Visualizing best genome of generation {generation}...")
-        simulation.run(mazes, best_genome, best_fitness, generation, config)
-
+    # start the simulation every 10 generations
+    if generation % 10 == 0:
+        print(f"\n \n \n Simulation of the best mouse of generation {generation}... \n \n \n")
+        try:
+            simulation.run(best_mouse.net, generation)
+        except Exception as e:
+            print(e)
     generation += 1
-
 
 def run(config_file):
     directory = "nets"
@@ -146,18 +99,8 @@ def run(config_file):
     p.add_reporter(stats)
     p.add_reporter(neat.Checkpointer(10, None, os.path.join(directory, 'neat-checkpoint-')))
 
-    print("🚀 Starting evolution...")
-    winner = p.run(eval_genomes, 100)
 
-    print("\n" + "=" * 80)
-    print("🏆 EVOLUTION COMPLETED!")
-    print("=" * 80)
-    print(f"\nBest Genome:")
-    print(winner)
-
-    # Salva statistiche complete
-    save_stats_to_file()
-
+    winner = p.run(eval_genomes, NUM_GENERATIONS)
     net = neat.nn.FeedForwardNetwork.create(winner, config)
 
     path = os.path.join(directory, "winner_genome.pkl")
@@ -165,76 +108,32 @@ def run(config_file):
         import pickle
         pickle.dump(winner, f)
 
-    print(f"\n✅ Saved best genome to {path}")
+    print(f"\n✅ Saved the final mouse to {path}")
+
+    print(f"\n \n \n Simulation of the BESTEST mouse... \n \n \n")
+    simulation.run(bestest_mouse.net)
 
     return winner, net, stats
 
-
-def print_generation_stats(gen, novelty_scores, final_positions, fitnesses):
-    """Stampa statistiche leggibili per la generazione"""
-    print("\n" + "=" * 80)
-    print(f"📊 GENERATION {gen} STATISTICS")
-    print("=" * 80)
-
-    # Statistiche Novelty
-    if novelty_scores:
-        print(f"\n🎯 NOVELTY SCORES:")
-        print(f"   Min:     {min(novelty_scores):.3f}")
-        print(f"   Max:     {max(novelty_scores):.3f}")
-        print(f"   Mean:    {statistics.mean(novelty_scores):.3f}")
-        print(f"   Median:  {statistics.median(novelty_scores):.3f}")
-        print(f"   StdDev:  {statistics.stdev(novelty_scores) if len(novelty_scores) > 1 else 0:.3f}")
-
-    # Statistiche Posizioni Finali
-    print(f"\n📍 FINAL POSITIONS ({len(final_positions)} mice):")
-
-    # Raggruppa posizioni identiche
-    position_counts = {}
-    for pos in final_positions:
-        position_counts[pos] = position_counts.get(pos, 0) + 1
-
-    # Mostra le top 5 posizioni più frequenti
-    sorted_positions = sorted(position_counts.items(), key=lambda x: x[1], reverse=True)
-    print(f"   Top 5 most common positions:")
-    for i, (pos, count) in enumerate(sorted_positions[:5], 1):
-        percentage = (count / len(final_positions)) * 100
-        print(f"   {i}. {pos}: {count} mice ({percentage:.1f}%)")
-
-    # Diversità posizioni
-    unique_positions = len(position_counts)
-    diversity = (unique_positions / len(final_positions)) * 100
-    print(f"\n   Unique positions: {unique_positions}/{len(final_positions)} ({diversity:.1f}% diversity)")
-
-    # Statistiche Fitness
-    if fitnesses:
-        print(f"\n💪 FITNESS:")
-        print(f"   Min:     {min(fitnesses):.2f}")
-        print(f"   Max:     {max(fitnesses):.2f}")
-        print(f"   Mean:    {statistics.mean(fitnesses):.2f}")
-        print(f"   Median:  {statistics.median(fitnesses):.2f}")
-
-    print("=" * 80 + "\n")
-
-
-def save_stats_to_file(filename="evolution_stats.txt"):
-    """Salva tutte le statistiche in un file"""
+def debug():
+    global mices
+    filename = "log.txt"
     with open(filename, 'w') as f:
         f.write("EVOLUTION STATISTICS REPORT\n")
         f.write("=" * 80 + "\n\n")
 
-        for i, gen_data in enumerate(evolution_stats['generations']):
-            f.write(f"\nGENERATION {gen_data['generation']}\n")
+        f.write(f"\nALL MICE:\n")
+        f.write("-" * 80 + "\n\n")
+        for gid in mices:
+            mouse = mices[gid]
+            maze = loader.get_random_maze()
+            fitness = f"fitness: {sum(mouse.fitness_values)/10} = {DISTANCE_WEIGHT} * {sum(mouse.distance_scores_values)/10} + {NOVELTY_WEIGHT} * {sum(mouse.novelty_scores_values)/10} - {COST_WEIGHT} * {sum(mouse.costs)/10}\n"
+            position = f"last position: {mouse.position} -> {maze.distance_from_goal(mouse.position)} from goal\n"
+            status = f"arrived? {mouse.arrived}. stuck? {mouse.stuck}. \n"
+            f.write(fitness)
+            f.write(position)
+            f.write(status)
             f.write("-" * 80 + "\n")
-            f.write(f"Best Fitness: {gen_data['best_fitness']:.2f}\n")
-            f.write(f"Avg Fitness:  {gen_data['avg_fitness']:.2f}\n")
-            f.write(f"\nNovelty Scores ---- Final Positions\n")
-            for index in range(len(gen_data['final_positions'])):
-                f.write(f"{gen_data['novelty_scores'][index]} --- {gen_data['final_positions'][index]}\n")
-            f.write("\n" + "=" * 80 + "\n")
-
-    print(f"✅ Statistics saved to {filename}")
-
-
 
 if __name__ == '__main__':
     local_dir = os.path.dirname(__file__)
