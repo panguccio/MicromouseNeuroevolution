@@ -122,7 +122,7 @@ class Maze:
 
 
     def is_in_goal(self, pointed_cell):
-        return pointed_cell in self.goal_cells
+        return self.distance_from_goal(pointed_cell) == 0
 
 
 def distance(cell_a, cell_b):

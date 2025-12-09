@@ -212,3 +212,4 @@ def move_with_network(maze, mouse, net):
     mouse.last_action = action
 
     mouse.act(action, maze)
+
