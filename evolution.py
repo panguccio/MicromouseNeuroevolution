@@ -1,42 +1,55 @@
+import glob
 import os
+import pickle
 import shutil
 import neat
 
 import simulation
 from maze_loader import MazeLoader
 from mouse import Mouse
+from neat.parallel import ParallelEvaluator
+from simulation import draw_stats
 
 loader = MazeLoader()
 generation = 0
 
-MAX_NOVELTY_SCORE = 14
-COST_WEIGHT = 0 # 2
-DISTANCE_WEIGHT = .53
-NOVELTY_WEIGHT = .96
+
+
 K = 4
-NUM_GENERATIONS = 200
+NUM_GENERATIONS = 500
+max_checkpoints = 3
+n_mazes = 50
 
 bestest_mouse = Mouse()
+bestest_path = os.path.join("nets", "bestest_mouse.pkl")
 
+directory = "nets"
+
+# for debug
+mices = {}
 
 
 def eval_genomes(genomes, config):
-    global generation, bestest_mouse
+    global generation, bestest_mouse, mices
     best_mouse = Mouse()
 
-    mazes = loader.get_random_mazes(10)
+    mazes = loader.get_random_mazes(n_mazes)
     mice = {}
 
     # creates the population of mice, linking them to the genomes
     for genome_id, genome in genomes:
-        mice[genome_id] = Mouse(mazes[0].start_cell, mazes[0].size ** 2, len(mazes))
-        mice[genome_id].genome = genome
+        mice[genome_id] = Mouse(start_position=mazes[0].start_cell,
+                                max_steps=mazes[0].size ** 2,
+                                genome=genome,
+                                gid=genome_id,
+                                generation=generation)
 
     for maze in mazes:
 
         # 1. try to solve the maze
         for genome_id, genome in genomes:
             mouse = mice[genome_id]
+            mouse.reset()
             mouse.net = neat.nn.FeedForwardNetwork.create(genome, config)
 
             while mouse.alive:
@@ -55,35 +68,32 @@ def eval_genomes(genomes, config):
             mouse = mice[genome_id]
             others_positions = [mice[gid].position for gid, g in genomes
                                 if gid != genome_id]
-            mouse.compute_novelty_score(others_positions, MAX_NOVELTY_SCORE, K)
+            mouse.compute_novelty_score(others_positions, K)
 
     # 4. after all mazes, compute the final fitness
     for genome_id, genome in genomes:
         mouse = mice[genome_id]
-        mouse.compute_fitness_score(DISTANCE_WEIGHT, NOVELTY_WEIGHT, COST_WEIGHT)
+        mouse.compute_fitness_score()
         genome.fitness = mouse.fitness
 
         # update the best individual of all
         if genome.fitness > best_mouse.fitness:
             best_mouse = mice[genome_id]
+            save_mouse(best_mouse, "latest")
             if genome.fitness > bestest_mouse.fitness:
                 bestest_mouse = mice[genome_id]
+                mices[genome_id] = bestest_mouse
+                save_mouse(bestest_mouse, "bestest")
+
 
     # start the simulation every 10 generations
     if generation % 10 == 0:
-        print(f"\n \n \n Simulation of the best mouse of generation {generation}... \n \n \n")
-        try:
-            simulation.run(best_mouse.net, generation)
-        except Exception as e:
-            print(e)
+        print(f"🎬 Simulation of the best mouse of generation {generation}... \n")
+        #simulation.run(best_mouse, generation)
     generation += 1
 
 def run(config_file):
-    directory = "nets"
-    if os.path.exists(directory):
-        shutil.rmtree(directory)
-    os.makedirs(directory, exist_ok=True)
-
+    global generation
     config = neat.Config(
         neat.DefaultGenome,
         neat.DefaultReproduction,
@@ -91,48 +101,80 @@ def run(config_file):
         neat.DefaultStagnation,
         config_file
     )
+    global directory, bestest_mouse
 
-    p = neat.Population(config)
+
+
+    p = None
+
+    if os.path.exists(directory) and os.listdir(directory):
+        checkpoints = glob.glob(os.path.join(directory, "neat-checkpoint-*"))
+
+        if checkpoints:
+
+            max_index = max([int(cp.split("-")[-1]) for cp in checkpoints])
+            checkpoint_file = os.path.join(directory, 'neat-checkpoint-' + str(max_index))
+            p = neat.Checkpointer.restore_checkpoint(checkpoint_file)
+            generation = p.generation
+
+            for old_file in checkpoints:
+                if not old_file == checkpoint_file:
+                    os.remove(old_file)
+            print(f"Deleted old checkpoints")
+
+        if os.path.exists(bestest_path):
+            with open(bestest_path, "rb") as f:
+                bestest_mouse = pickle.load(f)
+
+    if p is None:
+        os.makedirs(directory, exist_ok=True)
+        p = neat.Population(config)
 
     p.add_reporter(neat.StdOutReporter(True))
     stats = neat.StatisticsReporter()
     p.add_reporter(stats)
-    p.add_reporter(neat.Checkpointer(10, None, os.path.join(directory, 'neat-checkpoint-')))
+    p.add_reporter(neat.Checkpointer(49, None, os.path.join(directory, 'neat-checkpoint-')))
+
+    p.run(eval_genomes, NUM_GENERATIONS)
+    debug()
+
+    print(f"🎬 Simulation of the BESTEST mouse... \n")
+    simulation.run(bestest_mouse)
 
 
-    winner = p.run(eval_genomes, NUM_GENERATIONS)
-    net = neat.nn.FeedForwardNetwork.create(winner, config)
-
-    path = os.path.join(directory, "winner_genome.pkl")
+def save_mouse(mouse, name):
+    path = os.path.join(directory, str(name) + "_mouse.pkl")
     with open(path, "wb") as f:
         import pickle
-        pickle.dump(winner, f)
+        pickle.dump(mouse, f)
+    print(f"✅ Saved the {name} mouse to {path}")
+    print(f"\t fitness: {mouse.fitness}")
+    print(f"\t gid: {mouse.gid}; generation: {mouse.generation}\n")
+    return path
 
-    print(f"\n✅ Saved the final mouse to {path}")
-
-    print(f"\n \n \n Simulation of the BESTEST mouse... \n \n \n")
-    simulation.run(bestest_mouse.net)
-
-    return winner, net, stats
 
 def debug():
     global mices
     filename = "log.txt"
-    with open(filename, 'w') as f:
-        f.write("EVOLUTION STATISTICS REPORT\n")
-        f.write("=" * 80 + "\n\n")
-
-        f.write(f"\nALL MICE:\n")
-        f.write("-" * 80 + "\n\n")
+    with open(os.path.join(directory, filename), 'a') as f:
+        f.write("\n=" * 80 + "\n\n")
         for gid in mices:
             mouse = mices[gid]
             maze = loader.get_random_maze()
-            fitness = f"fitness: {sum(mouse.fitness_values)/10} = {DISTANCE_WEIGHT} * {sum(mouse.distance_scores_values)/10} + {NOVELTY_WEIGHT} * {sum(mouse.novelty_scores_values)/10} - {COST_WEIGHT} * {sum(mouse.costs)/10}\n"
+            genetics = f"generation: {mouse.generation}; gid: {mouse.gid}\n"
             position = f"last position: {mouse.position} -> {maze.distance_from_goal(mouse.position)} from goal\n"
+            fitness = f"fitness: {mouse.fitness} = {mouse.DISTANCE_WEIGHT} * {sum(mouse.distance_scores_values)/n_mazes} + {mouse.NOVELTY_WEIGHT} * {sum(mouse.novelty_scores_values)/n_mazes} - {mouse.COST_WEIGHT} * {sum(mouse.costs)/n_mazes}\n"
+            distance = f"distance: {mouse.distance_scores_values}\n"
+            novelty = f"novelty: {mouse.novelty_scores_values}\n"
+            costs = f"costs: {mouse.costs}\n"
             status = f"arrived? {mouse.arrived}. stuck? {mouse.stuck}. \n"
-            f.write(fitness)
-            f.write(position)
+            f.write(genetics)
             f.write(status)
+            f.write(position)
+            f.write(fitness)
+            f.write(distance)
+            f.write(novelty)
+            f.write(costs)
             f.write("-" * 80 + "\n")
 
 if __name__ == '__main__':

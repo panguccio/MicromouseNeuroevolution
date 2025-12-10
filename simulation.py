@@ -13,27 +13,16 @@ WALL_COLOR = (255, 0, 0)
 WALL_THICKNESS = 2
 MOUSE_IMG = pygame.image.load("mouse.png")
 MOUSE_IMG = pygame.transform.scale(MOUSE_IMG, (CELL_SIZE // 1.5, CELL_SIZE // 1.5))
-genome_path = os.path.join("nets", "winner_genome.pkl")
+latest_path = os.path.join("nets", "latest_mouse.pkl")
+bestest_path = os.path.join("nets", "bestest_mouse.pkl")
 loader = MazeLoader()
 config_path = os.path.join(os.path.dirname(__file__), 'config-neat.ini')
 
 
-def load_best_network(config):
-    with open(genome_path, "rb") as f:
-        genome = pickle.load(f)
-    net = neat.nn.FeedForwardNetwork.create(genome, config)
-    return net
-
-
-def configure():
-    config = neat.Config(
-        neat.DefaultGenome,
-        neat.DefaultReproduction,
-        neat.DefaultSpeciesSet,
-        neat.DefaultStagnation,
-        config_path
-    )
-    return config
+def load_best_mouse():
+    with open(bestest_path, "rb") as f:
+        mouse = pickle.load(f)
+    return mouse
 
 
 def draw_maze(screen, maze: Maze, offset_x=0, offset_y=0):
@@ -100,7 +89,10 @@ def draw_stats(screen, mouse: Mouse, stats_width, maze_width, screen_height, gen
     stats = [
         ("Generation:", str(generation), (255, 255, 0)),
         ("Steps:", str(mouse.steps), (255, 255, 255)),
-        ("Alive:", str(mouse.alive), (255, 255, 0))
+        ("Alive:", str(mouse.alive), (255, 255, 0)),
+        ("Fitness:", str(mouse.fitness), (255, 255, 0)),
+        ("Generation:", str(mouse.generation), (255, 255, 0)),
+        ("Gid:", str(mouse.gid), (255, 255, 0))
     ]
 
     for label, value, color in stats:
@@ -148,17 +140,21 @@ def draw_stats(screen, mouse: Mouse, stats_width, maze_width, screen_height, gen
         screen.blit(inputs_surf, (panel_x + 10, y_offset))
 
 
-def run(mouse_net=None, generation=None, maze=None):
-
-    pygame.init()
-    mouse = Mouse()
-    if mouse_net is None:
-        mouse_net = load_best_network(configure())
-    mouse.net = mouse_net
-    pygame.display.set_caption(f"MicroMouse Optimization - Generation {generation}")
-
+def run(sim_mouse=None, generation=None, maze=None):
     if maze is None:
         maze = loader.get_random_maze()
+
+    if sim_mouse is None:
+        sim_mouse = load_best_mouse()
+
+    mouse = Mouse(start_position=maze.start_cell,
+                  max_steps=maze.size ** 2,
+                  generation=sim_mouse.generation,
+                  net=sim_mouse.net,
+                  fitness=sim_mouse.fitness)
+
+    pygame.init()
+    pygame.display.set_caption(f"MicroMouse Optimization - Generation {generation}")
 
     # Calcola dimensioni finestra
     maze_width = maze.size * CELL_SIZE
@@ -169,7 +165,6 @@ def run(mouse_net=None, generation=None, maze=None):
     screen_height = max(maze_height, 450)  # Altezza minima per statistiche
 
     screen = pygame.display.set_mode((screen_width, screen_height))
-
 
     # Offset per centrare il labirinto verticalmente
     maze_offset_y = (screen_height - maze_height) // 2
@@ -218,6 +213,7 @@ def move_with_network(maze, mouse):
     mouse.last_inputs = inputs
     mouse.last_action = action
     mouse.act(action, maze)
+
 
 if __name__ == '__main__':
     run()
