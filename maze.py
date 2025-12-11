@@ -4,10 +4,11 @@ from direction import Direction
 
 class Maze:
 
-    def __init__(self, text=None, size=16):
+    def __init__(self, text=None, name="", size=16):
         self.size = size
         self.grid = np.zeros((size, size), dtype=np.uint8)
         self.start_cell = (15, 0)
+        self.name = name
         self.max_steps = 2 * size ** 2
         mid = size // 2
         self.goal_cells = [
@@ -16,6 +17,7 @@ class Maze:
             (mid, mid),  # bottom-right
             (mid, mid - 1)  # bottom-left
         ]
+
 
         if text is not None:
             self._from_text(text, size)
@@ -115,15 +117,22 @@ class Maze:
                 if self.has_wall(direction, *cell):
                     return step
 
-    def distance_from_goal(self, pointed_cell):
+    def man_distance_from_goal(self, pointed_cell):
         # the manhattan distance from the closest goal cell
-        return min(distance(pointed_cell, goal_cell) for goal_cell in self.goal_cells)
+        return min(man_distance(pointed_cell, goal_cell) for goal_cell in self.goal_cells)
 
+    def minmax_distance_from_goal(self, pointed_cell):
+        return self.minmax_distance(pointed_cell)
 
+    def minmax_distance(self, cell_a):
+        for i in range(self.size//2): # 0 to 8
+            if min(cell_a) == i or max(cell_a) == self.size - 1 - i:
+                return self.size//2 - 1 - i
 
     def is_in_goal(self, pointed_cell):
-        return self.distance_from_goal(pointed_cell) == 0
+        return self.man_distance_from_goal(pointed_cell) == 0
 
 
-def distance(cell_a, cell_b):
+def man_distance(cell_a, cell_b):
     return abs(cell_a[0] - cell_b[0]) + abs(cell_a[1] - cell_b[1])
+
