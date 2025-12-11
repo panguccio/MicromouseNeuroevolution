@@ -70,7 +70,7 @@ class MazeLoader:
 
     def get_maze(self, name):
         f = open(self.directory + "/" + name, "r")
-        return Maze(f.readlines())
+        return Maze(text=f.readlines(), name=name)
 
     def get_random_mazes(self, quantity=10):
         mazes = []
