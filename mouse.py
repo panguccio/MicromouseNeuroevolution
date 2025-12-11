@@ -6,10 +6,13 @@ from direction import Direction
 COST_WEIGHT = .7
 DISTANCE_WEIGHT = 2
 NOVELTY_WEIGHT = .5
+maze_size = 16
+
 
 class Mouse:
 
-    def __init__(self, start_position=(15, 0), max_steps=16 ** 2, genome=None, gid=None, net=None, generation=0, fitness=0):
+    def __init__(self, start_position=(maze_size, 0), max_steps=maze_size ** 2, genome=None, gid=None, net=None,
+                 generation=0, fitness=0):
         # STATUS AND CHARACTERISTICS
         self.alive = True
         self.start_position = start_position
@@ -17,20 +20,23 @@ class Mouse:
         self.direction = Direction.N
         self.arrived = False
         self.ahead_sight = 3
-        self.lateral_sight = 1
+        self.lateral_sight = 3
+        # MEMORY
+        self.inner_maze = Maze(size=maze_size)
+        self.visited = set()
+        self.visited.add(start_position)
 
         # FOR COST COMPUTATION
         self.steps = 0
         self.max_steps = max_steps
         self.cost = 0
         # COST CONSTANTS
-        self.STEP_COST = 0.01
-        self.TURN_COST = 0
-        self.COLLISION_COST = 1
-        self.STUCK_COST = 20
+        # self.STEP_COST = 0.01
+        # self.TURN_COST = 0
+        # self.COLLISION_COST = 1
+        # self.STUCK_COST = 20
         # FOR REVISITED CHECK
-        self.visited = set()
-        self.visited.add(start_position)
+
         # STUCK CONTROL
         self.last_action = None
         self.last_inputs = []
@@ -86,7 +92,7 @@ class Mouse:
     # ---
 
     def proximity(self, maze: Maze):
-        return (maze.size//2 - 1 - maze.minmax_distance_from_goal(self.position))/(maze.size//2 - 1)
+        return (maze.size // 2 - 1 - maze.minmax_distance_from_goal(self.position)) / (maze.size // 2 - 1)
 
     def sense_ahead(self, maze: Maze):
         return self.sense(maze, self.direction, self.ahead_sight)
@@ -103,23 +109,25 @@ class Mouse:
         distance = maze.first_wall(direction, *self.position, sight)
         if distance is None:
             return 0
-        return 1 / (distance + 1)
+        if distance == 1:
+            self.inner_maze.add_wall(direction, *self.position)
+        return 1 - distance / sight
 
     # ---
     # Movement
     # ---
 
     def turn_left(self):
-        self.cost += self.TURN_COST
+        # self.cost += self.TURN_COST
         self.direction = self.direction.left
 
     def turn_right(self):
-        self.cost += self.TURN_COST
+        # self.cost += self.TURN_COST
         self.direction = self.direction.right
 
     def increment_path(self, position):
         self.steps += 1
-        self.cost += self.STEP_COST
+        # self.cost += self.STEP_COST
         if position not in self.visited:
             self.visited.add(position)
 
@@ -129,7 +137,7 @@ class Mouse:
 
         # checks if there's a wall
         if maze.has_wall(d, r, c):
-            self.cost += self.COLLISION_COST
+            # self.cost += self.COLLISION_COST
             return
 
         # moves
@@ -157,19 +165,37 @@ class Mouse:
             self.alive = False
             return
 
+        self.check_stuck()
+
+        if self.stuck_counter > self.max_stuck_counter:
+            self.stuck = True
+            self.alive = False
+            # self.cost += self.STUCK_COST
+            return
+
+        self.last_position = self.position
+
+    # ---
+    # Checks
+    # ---
+
+    def check_stuck(self):
         # Controlla se è bloccato
         if self.position == self.last_position:
             self.stuck_counter += 1
         else:
             self.stuck_counter = 0
 
-        if self.stuck_counter > self.max_stuck_counter:
+    def check_loop(self):
+        # to penalize useless cycles
+        revisit_ratio = self.steps / len(self.visited)  # n of times a cell is revisited on average
+        if revisit_ratio >= self.max_stuck_counter / 5:
             self.stuck = True
-            self.alive = False
-            self.cost += self.STUCK_COST
-            return
-
-        self.last_position = self.position
+            min_value = self.max_stuck_counter / 5
+            max_value = self.max_steps / 2  # if its
+            normalized_ratio = (revisit_ratio - min_value) / (max_value - min_value)
+            # so that the cost is between 10 (better than stuck) and 20 (like stuck)
+            # self.cost += self.STUCK_COST / 2 * (1 + normalized_ratio)
 
     # ---
     # Fitness
@@ -180,41 +206,27 @@ class Mouse:
             score = 100 + (self.max_steps - self.steps)
         else:
             # should be between 1 and 16
-            score = 16 - distance
+            score = maze_size - distance
         self.distance_scores_values.append(score)
-
 
     def compute_cost(self):
         self.check_loop()
-        self.costs.append(0.5 if self.stuck else 2)  # should be between 0 and a max of 100 i think
-
-    def check_loop(self):
-        # to penalize useless cycles
-        # n of times a cell is revisited on average
-        revisit_ratio = self.steps / len(self.visited)
-        if revisit_ratio >= self.max_stuck_counter / 5:
-            self.stuck = True
-            min_value = self.max_stuck_counter / 5
-            max_value = self.max_steps / 2  # if its
-            normalized_ratio = (revisit_ratio - min_value) / (max_value - min_value)
-            # so that the cost is between 10 (better than stuck) and 20 (like stuck)
-            self.cost += self.STUCK_COST / 2 * (1 + normalized_ratio)
+        self.costs.append(0.5 if self.stuck else 2)
 
     def compute_novelty_score(self, others_positions, k):
-        # should be between 0 and 32
+        # should be between 0 and 32 (but more likely near 0 with a max of 16)
         distances = [mz.man_distance(self.position, position) for position in others_positions]
-        k_nearest = sorted(distances)[1:min(k+1, len(distances))]
+        k_nearest = sorted(distances)[1:min(k + 1, len(distances))]
         score = sum(k_nearest) / len(k_nearest)
         self.novelty_scores_values.append(score)
 
-    def compute_fitness_score(self, distance_weight=DISTANCE_WEIGHT, novelty_weight=NOVELTY_WEIGHT, cost_weight=COST_WEIGHT):
+    def compute_fitness_score(self, distance_weight=DISTANCE_WEIGHT, novelty_weight=NOVELTY_WEIGHT,
+                              cost_weight=COST_WEIGHT):
         for i in range(len(self.distance_scores_values)):
             distance_score = self.distance_scores_values[i]
             cost = self.costs[i]
             novelty_score = self.novelty_scores_values[i]
+
             fitness = (distance_weight * distance_score + novelty_weight * novelty_score) * cost_weight * cost
             self.fitness_values.append(max(fitness, 0))
-
         self.fitness = sum(self.fitness_values) / len(self.fitness_values)
-
-
