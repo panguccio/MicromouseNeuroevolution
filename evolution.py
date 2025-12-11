@@ -86,7 +86,7 @@ def eval_genomes(genomes, config):
 
 
     # start the simulation every 10 generations
-    if generation % 100 == 0:
+    if generation % 20 == 0:
         print(f"🎬 Simulation of the best mouse of generation {generation}... \n")
         simulation.run(best_mouse)
     generation += 1

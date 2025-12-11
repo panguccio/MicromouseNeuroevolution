@@ -17,8 +17,6 @@ class Maze:
             (mid, mid),  # bottom-right
             (mid, mid - 1)  # bottom-left
         ]
-
-
         if text is not None:
             self._from_text(text, size)
 
@@ -48,8 +46,7 @@ class Maze:
         return 0 <= row < self.size and 0 <= column < self.size
 
     def get_walls(self, row, column):
-        """returns entire grid"""
-        return self.grid[row, column]
+        return self.grid[row, column] & 15
 
     # se è out of bounds row e column?
     def has_wall(self, direction: Direction, row, column):
@@ -58,34 +55,52 @@ class Maze:
 
     def add_wall(self, direction: Direction, row, column):
         """adds a wall to a cell in that direction"""
-        if self.in_bounds(row, column):
-            self.grid[row, column] |= direction.mask
+        self.add_cell_wall(column, direction, row)
 
         # updates adjacent cell
         new_row, new_column = row + direction.dr, column + direction.dc
-        if self.in_bounds(new_row, new_column):
-            new_side = direction.opposite
-            self.grid[new_row, new_column] |= new_side.mask
+        new_side = direction.opposite
+        self.add_cell_wall(new_column, new_side, new_row)
+
+    def add_cell_wall(self, column, direction, row):
+        if self.in_bounds(row, column):
+            self.grid[row, column] |= direction.mask
 
     def add_walls(self, walls):
         for wall in walls:
-            self.add_wall(wall[0], *wall[1:])
+            direction, cell = wall[0], wall[1:]
+            self.add_wall(direction, *cell)
 
     def remove_wall(self, direction: Direction, row, column):
         """removes a wall from a cell in that direction"""
         if not self.in_bounds(row, column):
             return
-        self.grid[row, column] &= np.invert(direction.mask)
+        self.remove_cell_wall(column, direction, row)
 
         # updates adjacent cell
         new_row, new_column = row + direction.dr, column + direction.dc
-        if self.in_bounds(new_row, new_column):
-            new_direction = direction.opposite
-            self.grid[new_row, new_column] &= np.invert(new_direction.mask)
+        new_direction = direction.opposite
+        self.remove_cell_wall(new_column, new_direction, new_row)
+
+    def remove_cell_wall(self, column, direction, row):
+        if self.in_bounds(row, column):
+            self.grid[row, column] &= np.invert(direction.mask) | 240
 
     def remove_walls(self, walls):
         for wall in walls:
-            self.remove_wall(wall[0], *wall[1:])
+            direction, cell = wall[0], wall[1:]
+            self.remove_wall(direction, *cell)
+
+    def add_visit(self, row, column):
+        if self.in_bounds(row, column):
+            times_visited = self.get_visits(row, column)
+            if times_visited == 15:
+                return
+            times_visited += 1
+            self.grid[row, column] = times_visited << 4 | self.get_walls(row, column)
+
+    def get_visits(self, row, column):
+        return self.grid[row, column] >> 4 if self.in_bounds(row, column) else 0
 
     def print_grid(self):
         """prints the grid"""

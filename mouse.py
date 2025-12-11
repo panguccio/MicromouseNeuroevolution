@@ -7,6 +7,8 @@ COST_WEIGHT = .7
 DISTANCE_WEIGHT = 2
 NOVELTY_WEIGHT = .5
 maze_size = 16
+max_visits = 15
+max_stuck_counter = 20
 
 
 class Mouse:
@@ -25,6 +27,7 @@ class Mouse:
         self.inner_maze = Maze(size=maze_size)
         self.visited = set()
         self.visited.add(start_position)
+        self.inner_maze.add_visit(*start_position)
 
         # FOR COST COMPUTATION
         self.steps = 0
@@ -43,7 +46,6 @@ class Mouse:
         self.last_position = self.position
         self.stuck_counter = 0
         self.stuck = False
-        self.max_stuck_counter = 20
 
         # GENETICS
         self.genome = genome
@@ -73,6 +75,7 @@ class Mouse:
         self.last_position = self.position
         self.stuck_counter = 0
         self.stuck = False
+        self.inner_maze = Maze(size=maze_size)
 
     # ---
     # Input processing
@@ -84,15 +87,22 @@ class Mouse:
             self.proximity(maze),
             self.sense_left(maze),
             self.sense_ahead(maze),
-            self.sense_right(maze)
+            self.sense_right(maze),
+            self.visit_intensity()
         ]
 
     # ---
     # Sensor logic
     # ---
 
+    def visit_intensity(self):
+        """la cella di fronte quanto è stata visitata con max di 10 visite"""
+        row, column = self.position
+        visits = self.inner_maze.get_visits(row + self.direction.dr, column + self.direction.dc)
+        return visits / max_visits
+
     def proximity(self, maze: Maze):
-        return (maze.size // 2 - 1 - maze.minmax_distance_from_goal(self.position)) / (maze.size // 2 - 1)
+        return (maze_size // 2 - 1 - maze.minmax_distance_from_goal(self.position)) / (maze_size // 2 - 1)
 
     def sense_ahead(self, maze: Maze):
         return self.sense(maze, self.direction, self.ahead_sight)
@@ -128,6 +138,7 @@ class Mouse:
     def increment_path(self, position):
         self.steps += 1
         # self.cost += self.STEP_COST
+        self.inner_maze.add_visit(*position)
         if position not in self.visited:
             self.visited.add(position)
 
@@ -167,7 +178,7 @@ class Mouse:
 
         self.check_stuck()
 
-        if self.stuck_counter > self.max_stuck_counter:
+        if self.stuck_counter > max_stuck_counter:
             self.stuck = True
             self.alive = False
             # self.cost += self.STUCK_COST
@@ -189,9 +200,9 @@ class Mouse:
     def check_loop(self):
         # to penalize useless cycles
         revisit_ratio = self.steps / len(self.visited)  # n of times a cell is revisited on average
-        if revisit_ratio >= self.max_stuck_counter / 5:
+        if revisit_ratio >= max_stuck_counter / 5:
             self.stuck = True
-            min_value = self.max_stuck_counter / 5
+            min_value = max_stuck_counter / 5
             max_value = self.max_steps / 2  # if its
             normalized_ratio = (revisit_ratio - min_value) / (max_value - min_value)
             # so that the cost is between 10 (better than stuck) and 20 (like stuck)

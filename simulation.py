@@ -29,6 +29,11 @@ BESTEST_PATH = os.path.join("nets", "bestest_mouse.pkl")
 LATEST_PATH = os.path.join("nets", "latest_mouse.pkl")
 best_simulation = False
 
+# Input
+input_labels = ["X", "L", "F", "R", "V"]
+num_inputs = len(input_labels)
+num_outputs = 3
+
 # Caricamento risorse
 if os.path.exists(MOUSE_IMG_PATH):
     MOUSE_IMG = pygame.image.load(MOUSE_IMG_PATH)
@@ -96,10 +101,11 @@ def draw_text(screen, text, x, y, size=18, color=TEXT_COLOR, bold=False):
 def get_death_reason(mouse):
     if mouse.alive: return "-"
     if mouse.steps >= mouse.max_steps: return "TIMEOUT"
+    if mouse.arrived: return "GOAL!"
     return "CRASHED"
 
 
-def draw_dashboard(screen, x, y, width, height, mouse, generation, genome, maze_name):
+def draw_dashboard(screen, x, y, width, height, mouse, genome, maze, maze_name):
     # Sfondo
     pygame.draw.rect(screen, UI_BG_COLOR, (x, y, width, height))
     pygame.draw.line(screen, ACCENT_COLOR, (x, y), (x, height), 2)
@@ -137,32 +143,28 @@ def draw_dashboard(screen, x, y, width, height, mouse, generation, genome, maze_
     current_y += 20
 
     # SENSORI
-    draw_text(screen, "Inputs (F, L, R)", x + padding, current_y, 14, ACCENT_COLOR)
-    current_y += 30  # Aumentato spazio per non sovrapporre
+    draw_text(screen, "Inputs", x + padding, current_y, 14, ACCENT_COLOR)
+    current_y += 50  # Aumentato spazio per non sovrapporre
 
-    if mouse.last_inputs:
-        # Ordine richiesto: F, L, R
-        labels = ["X", "L", "F", "R"]
-        bar_width = (width - 2 * padding) / 4
+    inputs = mouse.get_inputs(maze)
+    bar_width = (width - 2 * padding) / num_inputs
 
-        for i, val in enumerate(mouse.last_inputs[:4]):
-            bar_x = x + padding + i * bar_width
+    for i, val in enumerate(inputs[:num_inputs]):
+        bar_x = x + padding + i * bar_width
 
-            # Label sopra la barra
-            draw_text(screen, labels[i], bar_x + bar_width // 2 - 5, current_y - 20, 14, (200, 200, 200), bold=True)
+        # Label sopra la barra
+        draw_text(screen, input_labels[i], bar_x + bar_width // 2 - 5, current_y - 20, 14, (200, 200, 200), bold=True)
 
-            # Barra
-            bar_h = 15
-            intensity = min(max(val, 0), 1)
-            col_r = int(255 * intensity)
-            col_g = int(255 * (1 - intensity))
+        # Barra
+        bar_h = 15
+        intensity = min(max(val, 0), 1)
+        col_r = int(255 * intensity)
+        col_g = int(255 * (1 - intensity))
 
-            pygame.draw.rect(screen, (30, 30, 30), (bar_x + 5, current_y, bar_width - 10, bar_h))
-            pygame.draw.rect(screen, (col_r, col_g, 0), (bar_x + 5, current_y, (bar_width - 10) * intensity, bar_h))
-            pygame.draw.rect(screen, (100, 100, 100), (bar_x + 5, current_y, bar_width - 10, bar_h), 1)
-        current_y += 30
-    else:
-        current_y += 30
+        pygame.draw.rect(screen, (30, 30, 30), (bar_x + 5, current_y, bar_width - 10, bar_h))
+        pygame.draw.rect(screen, (col_r, col_g, 0), (bar_x + 5, current_y, (bar_width - 10) * intensity, bar_h))
+        pygame.draw.rect(screen, (100, 100, 100), (bar_x + 5, current_y, bar_width - 10, bar_h), 1)
+    current_y += 30
 
     current_y += 10
 
@@ -188,10 +190,10 @@ def draw_network_dynamic(screen, genome, x, y, w, h):
     if genome is None: return
 
     # Identificazione nodi
-    # NEAT: Inputs sono negativi, Outputs 0..N
+    # NEAT: Inputs sono negativi, Outputs 0...N
     all_nodes = list(genome.nodes.keys())
-    input_nodes = [-1, -2, -3, -4]  # Fissi per Micromouse (L, F, R)
-    output_nodes = [0, 1, 2]  # Fissi per Azioni
+    input_nodes = [-i for i in range(1, num_inputs+1)]  # Fissi per Micromouse    input_nodes = [-1, -2, -3, -4]
+    output_nodes = [i for i in range(0, num_outputs)]  # Fissi per Azioni         output_nodes = [0, 1, 2]
 
     # Hidden sono tutti quelli che non sono input o output
     hidden_nodes = [n for n in all_nodes if n not in input_nodes and n not in output_nodes]
@@ -328,10 +330,10 @@ def run(sim_mouse=None, maze=None, maze_name=""):
 
         draw_maze(screen, mouse, maze, offset_x=0, offset_y=maze_offset_y)
         draw_mouse(screen, mouse, offset_x=0, offset_y=maze_offset_y)
-        draw_dashboard(screen, maze_pixel_size, 0, dashboard_width, screen_height, mouse, mouse.generation, genome, maze_name)
+        draw_dashboard(screen=screen, x=maze_pixel_size, y=0, width=dashboard_width, height=screen_height, mouse=mouse, genome=genome, maze=maze, maze_name=maze_name)
 
         pygame.display.flip()
-        clock.tick(10)  # 30 FPS stabili per la GUI
+        clock.tick(10)  # 10 FPS per la GUI
 
     pygame.quit()
 
