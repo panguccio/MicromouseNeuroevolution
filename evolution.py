@@ -1,14 +1,13 @@
 import glob
 import os
 import pickle
-import shutil
+
+
 import neat
 
 import simulation
 from maze_loader import MazeLoader
 from mouse import Mouse
-from neat.parallel import ParallelEvaluator
-from simulation import draw_stats
 
 loader = MazeLoader()
 generation = 0
@@ -16,9 +15,9 @@ generation = 0
 
 
 K = 4
-NUM_GENERATIONS = 500
+NUM_GENERATIONS = 300
 max_checkpoints = 3
-n_mazes = 50
+n_mazes = 20
 
 bestest_mouse = Mouse()
 bestest_path = os.path.join("nets", "bestest_mouse.pkl")
@@ -39,7 +38,7 @@ def eval_genomes(genomes, config):
     # creates the population of mice, linking them to the genomes
     for genome_id, genome in genomes:
         mice[genome_id] = Mouse(start_position=mazes[0].start_cell,
-                                max_steps=mazes[0].size ** 2,
+                                max_steps=mazes[0].size*8,
                                 genome=genome,
                                 gid=genome_id,
                                 generation=generation)
@@ -59,7 +58,7 @@ def eval_genomes(genomes, config):
                 mouse.act(action, maze)
 
             # 2. calculate the first fitness component (distance, cost)
-            distance = maze.distance_from_goal(mouse.position)
+            distance = maze.man_distance_from_goal(mouse.position)
             mouse.compute_distance_score(distance)
             mouse.compute_cost()
 
@@ -87,9 +86,9 @@ def eval_genomes(genomes, config):
 
 
     # start the simulation every 10 generations
-    if generation % 10 == 0:
+    if generation % 100 == 0:
         print(f"🎬 Simulation of the best mouse of generation {generation}... \n")
-        #simulation.run(best_mouse, generation)
+        simulation.run(best_mouse)
     generation += 1
 
 def run(config_file):
@@ -102,8 +101,6 @@ def run(config_file):
         config_file
     )
     global directory, bestest_mouse
-
-
 
     p = None
 
@@ -157,24 +154,18 @@ def debug():
     global mices
     filename = "log.txt"
     with open(os.path.join(directory, filename), 'a') as f:
-        f.write("\n=" * 80 + "\n\n")
+        f.write("\n" + "=" * 80 + "\n\n")
         for gid in mices:
             mouse = mices[gid]
             maze = loader.get_random_maze()
             genetics = f"generation: {mouse.generation}; gid: {mouse.gid}\n"
-            position = f"last position: {mouse.position} -> {maze.distance_from_goal(mouse.position)} from goal\n"
-            fitness = f"fitness: {mouse.fitness} = {mouse.DISTANCE_WEIGHT} * {sum(mouse.distance_scores_values)/n_mazes} + {mouse.NOVELTY_WEIGHT} * {sum(mouse.novelty_scores_values)/n_mazes} - {mouse.COST_WEIGHT} * {sum(mouse.costs)/n_mazes}\n"
+            position = f"last position: {mouse.position} -> {maze.man_distance_from_goal(mouse.position)} from goal\n"
+            fitness = f"fitness: {mouse.fitness} = {mouse.fitness_values}\n"
             distance = f"distance: {mouse.distance_scores_values}\n"
             novelty = f"novelty: {mouse.novelty_scores_values}\n"
             costs = f"costs: {mouse.costs}\n"
             status = f"arrived? {mouse.arrived}. stuck? {mouse.stuck}. \n"
-            f.write(genetics)
-            f.write(status)
-            f.write(position)
-            f.write(fitness)
-            f.write(distance)
-            f.write(novelty)
-            f.write(costs)
+            f.write(genetics + status + position + fitness + distance + novelty + costs)
             f.write("-" * 80 + "\n")
 
 if __name__ == '__main__':
