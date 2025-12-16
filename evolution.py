@@ -1,7 +1,8 @@
 import glob
 import os
 import pickle
-
+import random
+import threading
 
 import neat
 
@@ -12,12 +13,13 @@ from mouse import Mouse
 loader = MazeLoader()
 generation = 0
 
-
-
 K = 4
-NUM_GENERATIONS = 300
+NUM_GENERATIONS = 400
 max_checkpoints = 3
-n_mazes = 20
+n_mazes = 4
+checkpoint_interval = 25
+maze_load_interval = 40
+
 
 bestest_mouse = Mouse()
 bestest_path = os.path.join("nets", "bestest_mouse.pkl")
@@ -26,19 +28,25 @@ directory = "nets"
 
 # for debug
 mices = {}
+mazes = loader.get_random_mazes(n_mazes)
+for maze in mazes:
+    print(maze.name)
+
+
+def load_new_mazes():
+    global mazes
+    mazes = loader.get_random_mazes(n_mazes)
 
 
 def eval_genomes(genomes, config):
     global generation, bestest_mouse, mices
     best_mouse = Mouse()
 
-    mazes = loader.get_random_mazes(n_mazes)
     mice = {}
 
     # creates the population of mice, linking them to the genomes
     for genome_id, genome in genomes:
         mice[genome_id] = Mouse(start_position=mazes[0].start_cell,
-                                max_steps=mazes[0].size*8,
                                 genome=genome,
                                 gid=genome_id,
                                 generation=generation)
@@ -76,20 +84,23 @@ def eval_genomes(genomes, config):
         genome.fitness = mouse.fitness
 
         # update the best individual of all
-        if genome.fitness > best_mouse.fitness:
+        if generation % checkpoint_interval == 0 and genome.fitness > best_mouse.fitness:
             best_mouse = mice[genome_id]
+            mices[genome_id] = best_mouse
             save_mouse(best_mouse, "latest")
-            if genome.fitness > bestest_mouse.fitness:
-                bestest_mouse = mice[genome_id]
-                mices[genome_id] = bestest_mouse
-                save_mouse(bestest_mouse, "bestest")
+        if genome.fitness > bestest_mouse.fitness:
+            bestest_mouse = mice[genome_id]
+            save_mouse(bestest_mouse, "bestest")
 
 
     # start the simulation every 10 generations
-    if generation % 20 == 0:
+    if generation % checkpoint_interval == 0 and best_mouse is not None:
         print(f"🎬 Simulation of the best mouse of generation {generation}... \n")
-        simulation.run(best_mouse)
+        simulation.run(best_mouse, mazes[random.randint(0, n_mazes - 1)], config)
     generation += 1
+
+    if generation % maze_load_interval == 0:
+        load_new_mazes()
 
 def run(config_file):
     global generation
@@ -107,6 +118,7 @@ def run(config_file):
     if os.path.exists(directory) and os.listdir(directory):
         checkpoints = glob.glob(os.path.join(directory, "neat-checkpoint-*"))
 
+        # if there's a checkpoint available, it resumes the evolution from there
         if checkpoints:
 
             max_index = max([int(cp.split("-")[-1]) for cp in checkpoints])
@@ -130,13 +142,13 @@ def run(config_file):
     p.add_reporter(neat.StdOutReporter(True))
     stats = neat.StatisticsReporter()
     p.add_reporter(stats)
-    p.add_reporter(neat.Checkpointer(49, None, os.path.join(directory, 'neat-checkpoint-')))
+    p.add_reporter(neat.Checkpointer(checkpoint_interval, None, os.path.join(directory, 'neat-checkpoint-')))
 
     p.run(eval_genomes, NUM_GENERATIONS)
     debug()
 
     print(f"🎬 Simulation of the BESTEST mouse... \n")
-    simulation.run(bestest_mouse)
+    simulation.run(sim_mouse=bestest_mouse, maze=mazes[random.choice(range(n_mazes))], config=config)
 
 
 def save_mouse(mouse, name):
