@@ -1,3 +1,4 @@
+import neat
 import pygame
 import pickle
 import os
@@ -7,7 +8,7 @@ from maze_loader import MazeLoader
 from mouse import Mouse
 
 """
-This file takes care of the graphical rendering.
+This script takes care of the graphical rendering.
 """
 
 BESTEST_PATH = os.path.join("nets", "bestest_mouse.pkl")
@@ -23,6 +24,7 @@ def load_best_mouse():
         raise FileNotFoundError(f"Non trovo il file {path}")
     with open(path, "rb") as f:
         mouse = pickle.load(f)
+
     return mouse
 
 # --- LOGIC ---
@@ -32,22 +34,19 @@ def move_with_network(maze, mouse):
     action = outputs.index(max(outputs))
     mouse.act(action, maze)
 
-def run(sim_mouse=None, maze=None):
+def run(sim_mouse=None, maze=None, config=None):
     global best_simulation
 
     if maze is None:
         maze = loader.get_random_maze()
 
-    if sim_mouse is None:
-        best_simulation = True
+    if sim_mouse is None or sim_mouse.genome is None:
         sim_mouse = load_best_mouse()
 
     mouse = Mouse(start_position=maze.start_cell,
                   generation=sim_mouse.generation,
-                  net=sim_mouse.net,
-                  fitness=sim_mouse.fitness)
-
-    genome = sim_mouse.genome
+                  fitness=sim_mouse.fitness,
+                  genome=sim_mouse.genome)
 
     pygame.init()
     if best_simulation:
@@ -82,7 +81,8 @@ def run(sim_mouse=None, maze=None):
             if event.type == pygame.QUIT:
                 pygame.quit()
                 return
-
+        if mouse.net is None:
+            mouse.net = neat.nn.FeedForwardNetwork.create(mouse.genome, config)
         # SIMULATION
         if mouse.alive:
             # Gestione Velocità: se premi S fai 20 step logici in un solo frame grafico
@@ -101,7 +101,7 @@ def run(sim_mouse=None, maze=None):
 
         graphics.draw_maze(screen, mouse, maze, offset_x=0, offset_y=maze_offset_y)
         graphics.draw_mouse(screen, mouse, offset_x=0, offset_y=maze_offset_y)
-        graphics.draw_dashboard(screen=screen, x=maze_pixel_size, y=0, width=dashboard_width, height=screen_height, mouse=mouse, genome=genome, maze=maze, best_simulation=best_simulation)
+        graphics.draw_dashboard(screen=screen, x=maze_pixel_size, y=0, width=dashboard_width, height=screen_height, mouse=mouse, genome=mouse.genome, maze=maze, best_simulation=best_simulation)
 
         pygame.display.flip()
         clock.tick(10)  # 10 FPS per la GUI
@@ -110,4 +110,14 @@ def run(sim_mouse=None, maze=None):
 
 
 if __name__ == '__main__':
-    run()
+    best_simulation = True
+    local_dir = os.path.dirname(__file__)
+    config_file = os.path.join(local_dir, 'config-neat.ini')
+    config = neat.Config(
+        neat.DefaultGenome,
+        neat.DefaultReproduction,
+        neat.DefaultSpeciesSet,
+        neat.DefaultStagnation,
+        config_file
+    )
+    run(config=config)

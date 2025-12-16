@@ -4,6 +4,7 @@ import os
 import pygame
 
 from maze import Maze
+import mouse as mice
 from mouse import Mouse
 from direction import Direction
 
@@ -82,7 +83,7 @@ def draw_text(screen, text, x, y, size=18, color=TEXT_COLOR, bold=False):
 
 def get_death_reason(mouse):
     if mouse.alive: return "-"
-    if mouse.steps >= mouse.max_steps: return "TIMEOUT"
+    if mouse.steps >= mice.max_steps: return "TIMEOUT"
     if mouse.arrived: return "GOAL!"
     return "CRASHED"
 
@@ -110,7 +111,7 @@ def draw_dashboard(screen, x, y, width, height, mouse, genome, maze, best_simula
         ("Reason", get_death_reason(mouse), SUCCESS_COLOR if mouse.arrived else reason_color),
         ("Stuck", mouse.stuck, ACCENT_COLOR if mouse.stuck else SUCCESS_COLOR),
         ("Fitness", f"{mouse.fitness:.1f}"),
-        ("Steps", f"{mouse.steps}/{mouse.max_steps}"),
+        ("Steps", f"{mouse.steps}"),
     ]
 
     for item in stats:
