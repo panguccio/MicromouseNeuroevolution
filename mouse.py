@@ -61,9 +61,6 @@ class Mouse:
         self.generation = generation
 
         # FITNESS
-        self.distance_scores_values = []
-        self.novelty_scores_values = []
-        self.costs = []
         self.fitness_values = []
         self.fitness = fitness
 
@@ -78,6 +75,7 @@ class Mouse:
         self.stuck_counter = 0
         self.stuck = False
         self.inner_maze = Maze(size=maze_size)
+        if self.net is not None: self.net.reset()
 
     # ---
     # Input processing
@@ -141,12 +139,9 @@ class Mouse:
     def increment_path(self, position):
         self.steps += 1
         # self.cost += self.STEP_COST
-        if self.inner_maze.get_visits(*position) == max_visits and position not in self.saturated_cells:
-            self.saturated_cells.add(position)
-        else:
-            if position not in self.visited_cells:
-                self.visited_cells.add(position)
-            self.inner_maze.add_visit(*position)
+        if position not in self.visited_cells:
+            self.visited_cells.add(position)
+        self.inner_maze.add_visit(*position)
 
     def move_ahead(self, maze: Maze):
         r, c = self.position
@@ -187,7 +182,7 @@ class Mouse:
         if self.stuck_counter > max_stuck_counter:
             self.stuck = True
             self.alive = False
-            self.cost += STUCK_COST
+            # self.cost += STUCK_COST
             return
 
         self.last_position = self.position
@@ -207,46 +202,38 @@ class Mouse:
     # Fitness
     # ---
 
-    def compute_distance_score(self, distance):
-        if self.arrived:
-            score = 2 * BONUS - (BONUS * self.steps) / max_steps
-        else:
-            score = DISTANCE_WEIGHT * (maze_size - distance) / maze_size
-        self.distance_scores_values.append(score)
-
-    def compute_cost(self):
-        weight = COST_WEIGHT/3
-        cost = 0
-        # penalize saturating cells
-        if len(self.saturated_cells) != 0:
-            max_saturated_cells = max_steps // max_visits
-            cost += len(self.saturated_cells) * weight / max_saturated_cells
-        # penalize not visiting cells
-        if self.steps >= max_steps:
-            num_cells = maze_size ** 2
-            max_visitable = min(self.steps, num_cells)
-            cost += weight * (max_visitable - len(self.visited_cells)) / max_visitable
-        # penalize short paths (when stuck)
-        else:
-            cost += weight * (max_steps - self.steps) / max_steps
-        # penalize getting stuck and small costs for turning
-        cost += self.cost
-        self.costs.append(cost)
-
-    def compute_novelty_score(self, others_positions, k):
-        distances = [mz.man_distance(self.position, position) for position in others_positions]
-        k_nearest = sorted(distances)[1:min(k + 1, len(distances))]
-        mean = sum(k_nearest) / len(k_nearest)
-        score = NOVELTY_WEIGHT * (mean / (2 * maze_size))
-        self.novelty_scores_values.append(score)
-
     def compute_fitness_score(self):
-        for i in range(len(self.distance_scores_values)):
-            distance_score = self.distance_scores_values[i]
-            fitness = distance_score
-            if distance_score < BONUS:
-                cost = self.costs[i]
-                novelty_score = self.novelty_scores_values[i]
-                fitness += novelty_score - cost
-            self.fitness_values.append(max(fitness, 0))
-        self.fitness = sum(self.fitness_values) / len(self.fitness_values)
+        if self.arrived:
+            self.fitness = BONUS - self.steps
+        else:
+            self.fitness = sum(self.fitness_values) / len(self.fitness_values)
+        return self.fitness
+
+    def compute_maze_score(self, maze):
+        distance_score = self.compute_distance_score(maze)
+        performance = self.compute_performance()
+        fitness = distance_score + performance
+        self.fitness_values.append(max(fitness, 0))
+
+    def compute_distance_score(self, maze):
+        max_distance = maze.minmax_distance_from_goal(self.start_position)
+        distance_score = max_distance - maze.minmax_distance_from_goal(self.position)
+        return distance_score * 10
+
+    def compute_performance(self):
+        performance = 9
+        if self.stuck:
+            performance -= 2
+        performance -= self.visit_rate() // 2
+        return performance
+
+    def visit_rate(self):
+        return max(self.steps / len(self.visited_cells), max_visits) # in 1 - 15
+
+
+
+
+
+
+
+

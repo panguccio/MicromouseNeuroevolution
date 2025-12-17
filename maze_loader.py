@@ -51,9 +51,6 @@ class MazeLoader:
                 file for file in os.listdir(os.path.join(self.directory))
             ]
 
-
-
-
     def fix_maze_content(self, text):
         """Some mazes have wrong characters, to make them uniform in representation this method replaces them."""
         mapping = {

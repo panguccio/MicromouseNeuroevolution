@@ -14,11 +14,11 @@ loader = MazeLoader()
 generation = 0
 
 K = 4
-NUM_GENERATIONS = 400
+NUM_GENERATIONS = 1000
 max_checkpoints = 3
-n_mazes = 4
+n_mazes = 30
 checkpoint_interval = 25
-maze_load_interval = 40
+maze_load_interval = 500
 
 
 bestest_mouse = Mouse()
@@ -29,6 +29,7 @@ directory = "nets"
 # for debug
 mices = {}
 mazes = loader.get_random_mazes(n_mazes)
+
 for maze in mazes:
     print(maze.name)
 
@@ -57,7 +58,7 @@ def eval_genomes(genomes, config):
         for genome_id, genome in genomes:
             mouse = mice[genome_id]
             mouse.reset()
-            mouse.net = neat.nn.FeedForwardNetwork.create(genome, config)
+            mouse.net = neat.nn.RecurrentNetwork.create(genome, config)
 
             while mouse.alive:
                 inputs = mouse.get_inputs(maze)
@@ -65,17 +66,17 @@ def eval_genomes(genomes, config):
                 action = outputs.index(max(outputs))
                 mouse.act(action, maze)
 
-            # 2. calculate the first fitness component (distance, cost)
-            distance = maze.man_distance_from_goal(mouse.position)
-            mouse.compute_distance_score(distance)
-            mouse.compute_cost()
+            # 2. calculate the first fitness component (distance)
+            mouse.compute_maze_score(maze)
 
         # 3. after everyone's done with the maze, calculate the second fitness component (novelty)
+        """
         for genome_id, genome in genomes:
             mouse = mice[genome_id]
             others_positions = [mice[gid].position for gid, g in genomes
                                 if gid != genome_id]
             mouse.compute_novelty_score(others_positions, K)
+        """
 
     # 4. after all mazes, compute the final fitness
     for genome_id, genome in genomes:
@@ -96,7 +97,7 @@ def eval_genomes(genomes, config):
     # start the simulation every 10 generations
     if generation % checkpoint_interval == 0 and best_mouse is not None:
         print(f"🎬 Simulation of the best mouse of generation {generation}... \n")
-        simulation.run(best_mouse, mazes[random.randint(0, n_mazes - 1)], config)
+        #simulation.run(best_mouse, mazes[random.randint(0, n_mazes - 1)], config)
     generation += 1
 
     if generation % maze_load_interval == 0:
@@ -148,7 +149,7 @@ def run(config_file):
     debug()
 
     print(f"🎬 Simulation of the BESTEST mouse... \n")
-    simulation.run(sim_mouse=bestest_mouse, maze=mazes[random.choice(range(n_mazes))], config=config)
+    # simulation.run(sim_mouse=bestest_mouse, maze=mazes[random.choice(range(n_mazes))], config=config)
 
 
 def save_mouse(mouse, name):
@@ -157,8 +158,7 @@ def save_mouse(mouse, name):
         import pickle
         pickle.dump(mouse, f)
     print(f"✅ Saved the {name} mouse to {path}")
-    print(f"\t fitness: {mouse.fitness}")
-    print(f"\t gid: {mouse.gid}; generation: {mouse.generation}\n")
+    print(mouse_stats(mouse))
     return path
 
 
@@ -170,18 +170,23 @@ def debug():
         for gid in mices:
             mouse = mices[gid]
             maze = loader.get_random_maze()
-            genetics = f"generation: {mouse.generation}; gid: {mouse.gid}\n"
-            position = f"last position: {mouse.position} -> {maze.man_distance_from_goal(mouse.position)} from goal\n"
-            fitness = f"fitness: {mouse.fitness} = {mouse.fitness_values}\n"
-            distance = f"distance: {mouse.distance_scores_values}\n"
-            novelty = f"novelty: {mouse.novelty_scores_values}\n"
-            costs = f"costs: {mouse.costs}\n"
-            status = f"arrived? {mouse.arrived}. stuck? {mouse.stuck}. \n"
-            f.write(genetics + status + position + fitness + distance + novelty + costs)
+            f.write(mouse_stats(maze, mouse))
             f.write("-" * 80 + "\n")
+
+
+def mouse_stats(mouse):
+    genetics = f"\tgeneration: {mouse.generation}; gid: {mouse.gid}\n"
+    position = f"\tlast position: {mouse.position} -> {mazes[0].man_distance_from_goal(mouse.position)} from goal\n"
+    fitness = f"\tfitness: {mouse.fitness} = {mouse.fitness_values}\n"
+    status = f"\tarrived? {mouse.arrived}. stuck? {mouse.stuck}. \n"
+    path = f"\tsteps: {mouse.steps}, num visited: {mouse.visited_cells}, visited rate: {mouse.visit_rate()}\n"
+    # mouse.inner_maze.print_grid()
+    return genetics + status + position + fitness + path
+
 
 if __name__ == '__main__':
     local_dir = os.path.dirname(__file__)
     config_path = os.path.join(local_dir, 'config-neat.ini')
     run(config_path)
+
 

@@ -113,7 +113,7 @@ class Maze:
             line = ""
             for c in range(size):
                 line += "|" if self.has_wall(Direction.W, r, c) else " "
-                line += "   "
+                line += f"{self.get_visits(r, c):3d}"
             line += "|" if self.has_wall(Direction.E, r, size - 1) else " "
             print(line)
         line = "+"
@@ -140,9 +140,9 @@ class Maze:
         return self.minmax_distance(pointed_cell)
 
     def minmax_distance(self, cell_a):
-        for i in range(self.size//2): # 0 to 8
+        for i in range(self.size // 2): # 0 to 8
             if min(cell_a) == i or max(cell_a) == self.size - 1 - i:
-                return self.size//2 - 1 - i
+                return self.size // 2 - 1 - i
 
     def is_in_goal(self, pointed_cell):
         return self.man_distance_from_goal(pointed_cell) == 0
