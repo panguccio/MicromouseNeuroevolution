@@ -29,7 +29,7 @@ NEG_VAL_COLOR = (255, 80, 80)  # Connessioni negative
 MOUSE_IMG_PATH = "mouse.png"
 
 # Input
-input_labels = ["X", "L", "F", "R", "V"]
+input_labels = ["L", "F", "R", "D", "X", "Y", "P", "S", "K", "I", "A"]
 num_inputs = len(input_labels)
 num_outputs = 3
 
@@ -82,9 +82,10 @@ def draw_text(screen, text, x, y, size=18, color=TEXT_COLOR, bold=False):
     return surface.get_height()
 
 def get_death_reason(mouse):
-    if mouse.alive: return "-"
-    if mouse.steps >= mice.max_steps: return "TIMEOUT"
+    if mouse.alive: return "ALIVE"
+    if mouse.actions >= mice.max_steps: return "TIMEOUT"
     if mouse.arrived: return "GOAL!"
+    if mouse.stuck: return "STUCK"
     return "CRASHED"
 
 def draw_dashboard(screen, x, y, width, height, mouse, genome, maze, best_simulation):
@@ -106,12 +107,13 @@ def draw_dashboard(screen, x, y, width, height, mouse, genome, maze, best_simula
     status_color = SUCCESS_COLOR if mouse.alive else (150, 150, 150)
     reason_color = ACCENT_COLOR if not mouse.alive else TEXT_COLOR
     stats = [
-        ("Generation", mouse.generation),
-        ("Status", status_text, status_color),
-        ("Reason", get_death_reason(mouse), SUCCESS_COLOR if mouse.arrived else reason_color),
-        ("Stuck", mouse.stuck, ACCENT_COLOR if mouse.stuck else SUCCESS_COLOR),
-        ("Fitness", f"{mouse.fitness:.1f}"),
-        ("Steps", f"{mouse.steps}"),
+        ("Genome", mouse.gid),
+        ("Status", mouse.check_fate(), SUCCESS_COLOR if mouse.arrived else reason_color),
+        ("Distance", maze.man_distance_from_goal(mouse.position)),
+        ("Current fitness", f"{mouse.fitness_values}"),
+        ("Mean fitness", f"{mouse.fitness}"),
+        ("Turns/Steps", f"{mouse.turns}/{mouse.actions}"),
+        ("Visits per cell", f"{mouse.actions / len(mouse.visited_cells):.2f}"),
     ]
 
     for item in stats:
@@ -154,7 +156,7 @@ def draw_dashboard(screen, x, y, width, height, mouse, genome, maze, best_simula
 
     # RETE NEURALE
     draw_text(screen, "Neural Network", x + padding, current_y, 14, ACCENT_COLOR)
-    current_y += 10
+    current_y += 20
 
     # Spazio rimanente per la rete
     net_height = height - current_y - 40
@@ -169,64 +171,108 @@ def draw_dashboard(screen, x, y, width, height, mouse, genome, maze, best_simula
     else:
         draw_text(screen, "[S] Hold to Speed Up   [K] Kill", x + padding, info_y, 14, (150, 150, 150))
 
+
 def draw_network_dynamic(screen, genome, x, y, w, h):
     if genome is None: return
 
-    # Identificazione nodi
-    # NEAT: Inputs sono negativi, Outputs 0...N
     all_nodes = list(genome.nodes.keys())
-    input_nodes = [-i for i in range(1, num_inputs + 1)]  # Fissi per Micromouse    input_nodes = [-1, -2, -3, -4]
-    output_nodes = [i for i in range(0, num_outputs)]  # Fissi per Azioni         output_nodes = [0, 1, 2]
-
-    # Hidden sono tutti quelli che non sono input o output
+    input_nodes = [-i for i in range(1, num_inputs + 1)]
+    output_nodes = [i for i in range(0, num_outputs)]
     hidden_nodes = [n for n in all_nodes if n not in input_nodes and n not in output_nodes]
 
     node_pos = {}
     radius = 7
 
-    # Calcolo posizioni (Input Sinistra, Hidden Centro, Output Destra)
-
-    # 1. INPUTS
+    # 1. INPUTS (sinistra)
     for i, nid in enumerate(input_nodes):
         nx = x + 30
         ny = y + (h / (len(input_nodes) + 1)) * (i + 1)
         node_pos[nid] = (nx, ny)
 
-    # 2. OUTPUTS
+    # 2. OUTPUTS (destra)
     for i, nid in enumerate(output_nodes):
         nx = x + w - 30
         ny = y + (h / (len(output_nodes) + 1)) * (i + 1)
         node_pos[nid] = (nx, ny)
 
-    # 3. HIDDEN (Se presenti, li mettiamo al centro)
+    # 3. HIDDEN - Layout a griglia per reti ricorrenti
     if hidden_nodes:
-        # Se sono tanti, potresti volerli dividere in colonne, ma per ora una colonna centrale basta
-        layer_x = x + w / 2
+        # Dividi gli hidden in più colonne se sono tanti
+        max_per_column = 10
+        num_columns = (len(hidden_nodes) - 1) // max_per_column + 1
+
         for i, nid in enumerate(hidden_nodes):
-            ny = y + (h / (len(hidden_nodes) + 1)) * (i + 1)
+            col = i // max_per_column
+            row = i % max_per_column
+
+            # Distribuisci le colonne nello spazio centrale
+            layer_x = x + (w / (num_columns + 1)) * (col + 1)
+            ny = y + (h / (min(len(hidden_nodes), max_per_column) + 1)) * (row + 1)
             node_pos[nid] = (layer_x, ny)
 
     # Disegna CONNESSIONI
     for (in_node, out_node), conn in genome.connections.items():
-        if conn.enabled:
-            # Disegniamo solo se abbiamo calcolato la posizione di entrambi i nodi
-            # (Nel caso il genoma avesse nodi "morti" non connessi)
-            if in_node in node_pos and out_node in node_pos:
-                start = node_pos[in_node]
-                end = node_pos[out_node]
-                color = POS_VAL_COLOR if conn.weight > 0 else NEG_VAL_COLOR
-                width_line = max(1, min(5, int(abs(conn.weight) * 3)))
+        if conn.enabled and in_node in node_pos and out_node in node_pos:
+            start = node_pos[in_node]
+            end = node_pos[out_node]
+
+            # ⭐ Distingui connessioni ricorrenti
+            is_recurrent = False
+            if in_node in hidden_nodes and out_node in hidden_nodes:
+                # Connessione hidden-to-hidden (potenzialmente ricorrente)
+                is_recurrent = True
+            elif out_node in input_nodes or (out_node in hidden_nodes and in_node in output_nodes):
+                # Connessione che va "indietro" nel flusso
+                is_recurrent = True
+
+            color = POS_VAL_COLOR if conn.weight > 0 else NEG_VAL_COLOR
+            width_line = max(1, min(5, int(abs(conn.weight) * 3)))
+
+            # ⭐ Disegna le connessioni ricorrenti con stile diverso
+            if is_recurrent:
+                # Linea tratteggiata per connessioni ricorrenti
+                draw_dashed_line(screen, color, start, end, width_line)
+            else:
                 pygame.draw.line(screen, color, start, end, width_line)
+
+            # ⭐ Self-loop (nodo connesso a se stesso)
+            if in_node == out_node:
+                nx, ny = node_pos[in_node]
+                pygame.draw.circle(screen, color, (int(nx + radius + 5), int(ny)), radius // 2, width_line)
 
     # Disegna NODI
     for nid, (nx, ny) in node_pos.items():
-        color = (150, 150, 150)  # Hidden (Grigio)
+        color = (150, 150, 150)  # Hidden
         if nid in input_nodes:
-            color = (50, 100, 255)  # Input (Blu)
+            color = (50, 100, 255)  # Input
         elif nid in output_nodes:
-            color = (255, 50, 50)  # Output (Rosso)
+            color = (255, 50, 50)  # Output
 
         pygame.draw.circle(screen, color, (int(nx), int(ny)), radius)
-        pygame.draw.circle(screen, (255, 255, 255), (int(nx), int(ny)), radius, 1)  # Bordo bianco
+        pygame.draw.circle(screen, (255, 255, 255), (int(nx), int(ny)), radius, 1)
 
+
+# Helper per linee tratteggiate
+def draw_dashed_line(screen, color, start, end, width, dash_length=5):
+    """Disegna una linea tratteggiata per evidenziare connessioni ricorrenti"""
+    x1, y1 = start
+    x2, y2 = end
+    dx = x2 - x1
+    dy = y2 - y1
+    distance = (dx ** 2 + dy ** 2) ** 0.5
+
+    if distance == 0:
+        return
+
+    dashes = int(distance / dash_length)
+    for i in range(0, dashes, 2):
+        start_pos = (
+            x1 + (dx * i / dashes),
+            y1 + (dy * i / dashes)
+        )
+        end_pos = (
+            x1 + (dx * (i + 1) / dashes),
+            y1 + (dy * (i + 1) / dashes)
+        )
+        pygame.draw.line(screen, color, start_pos, end_pos, width)
 
