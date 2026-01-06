@@ -136,6 +136,12 @@ class Maze:
         # the manhattan distance from the closest goal cell
         return min(man_distance(pointed_cell, goal_cell) for goal_cell in self.goal_cells)
 
+    def x_distance_from_goal(self, pointed_cell):
+        return min([abs(goal_cell[1] - pointed_cell[1]) for goal_cell in self.goal_cells])
+
+    def y_distance_from_goal(self, pointed_cell):
+        return min([abs(goal_cell[0] - pointed_cell[0]) for goal_cell in self.goal_cells])
+
     def minmax_distance_from_goal(self, pointed_cell):
         return self.minmax_distance(pointed_cell)
 
