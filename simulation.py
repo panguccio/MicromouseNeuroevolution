@@ -14,14 +14,15 @@ best_simulation = False
 user_controlled = False
 loader = MazeLoader()
 
+
 def load_best_mouse():
     path = BESTEST_PATH
     if not os.path.exists(path):
         raise FileNotFoundError(f"Non trovo il file {path}, ne creo uno nuovo.")
     with open(path, "rb") as f:
         mouse = pickle.load(f)
-
     return mouse
+
 
 # --- LOGIC ---
 def move_with_network(maze, mouse):
@@ -30,6 +31,7 @@ def move_with_network(maze, mouse):
     action = outputs.index(max(outputs))
     mouse.act(action, maze)
     mouse.update_maze_score(maze, 0)
+
 
 def move_with_keys(event, maze, mouse):
     if event.type == pygame.KEYDOWN:
@@ -40,8 +42,13 @@ def move_with_keys(event, maze, mouse):
         if event.key == pygame.K_RIGHT:
             mouse.act(2, maze)
 
+
 def run(sim_mouse=None, maze=None, config=None):
     global best_simulation, user_controlled
+
+    # Inizializza Pygame UNA SOLA VOLTA per sessione
+    if not pygame.get_init():
+        pygame.init()
 
     if maze is None:
         maze = loader.get_random_maze()
@@ -59,13 +66,15 @@ def run(sim_mouse=None, maze=None, config=None):
                   genome=sim_mouse.genome,
                   gid=sim_mouse.gid)
 
-    pygame.init()
+    # Imposta caption
     if best_simulation:
-        pygame.display.set_caption(f"Micromouse Neuroevolution - Bestest mouse")
+        caption = "Micromouse Neuroevolution - Bestest mouse"
     elif user_controlled:
-        pygame.display.set_caption(f"Micromouse Neuroevolution - Test")
+        caption = "Micromouse Neuroevolution - Test"
     else:
-        pygame.display.set_caption(f"Micromouse Neuroevolution - Gen {mouse.generation}")
+        caption = f"Micromouse Neuroevolution - Gen {mouse.generation}"
+
+    pygame.display.set_caption(caption)
 
     # Layout
     maze_pixel_size = maze.size * graphics.CELL_SIZE
@@ -73,37 +82,38 @@ def run(sim_mouse=None, maze=None, config=None):
     screen_height = max(maze_pixel_size, 550)
     screen_width = maze_pixel_size + dashboard_width
 
+    # Crea o ottieni la finestra esistente
     screen = pygame.display.set_mode((screen_width, screen_height))
-    pygame.event.pump()
-    pygame.display.flip()
     clock = pygame.time.Clock()
     maze_offset_y = (screen_height - maze_pixel_size) // 2
+
+    # Crea la rete PRIMA del loop se necessario
+    if mouse.net is None and not user_controlled and mouse.genome is not None:
+        mouse.net = neat.nn.RecurrentNetwork.create(mouse.genome, config)
 
     running = True
 
     while running:
-        # Input from user
+        # Event handling
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+                continue
+            move_with_keys(event, maze, mouse)
+
+        # Input from user (keys held down)
         keys = pygame.key.get_pressed()
 
         # Kill command
         if keys[pygame.K_k]:
             if mouse.alive:
-                mouse.alive = False  # Uccidi
+                mouse.alive = False
             elif best_simulation:
                 running = False
 
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                return
-            move_with_keys(event, maze, mouse)
-
-        if mouse.net is None and not user_controlled:
-            mouse.net = neat.nn.RecurrentNetwork.create(mouse.genome, config)
-
         # SIMULATION
         if mouse.alive:
-            # Gestione Velocità: se premi S fai 20 step logici in un solo frame grafico
+            # Gestione Velocità: se premi S fai 3 step logici in un solo frame grafico
             steps_per_frame = 3 if keys[pygame.K_s] else 1
 
             for _ in range(steps_per_frame):
@@ -111,32 +121,52 @@ def run(sim_mouse=None, maze=None, config=None):
                     move_with_network(maze, mouse)
                 else:
                     break
-
         elif not best_simulation:
             running = False
 
-        # Drawing it all!
+        # Drawing
         screen.fill(graphics.BG_COLOR)
-
         graphics.draw_maze(screen, mouse, maze, offset_x=0, offset_y=maze_offset_y)
         graphics.draw_mouse(screen, mouse, offset_x=0, offset_y=maze_offset_y)
-        graphics.draw_dashboard(screen=screen, x=maze_pixel_size, y=0, width=dashboard_width, height=screen_height, mouse=mouse, genome=mouse.genome, maze=maze, best_simulation=best_simulation)
+        graphics.draw_dashboard(
+            screen=screen,
+            x=maze_pixel_size,
+            y=0,
+            width=dashboard_width,
+            height=screen_height,
+            mouse=mouse,
+            genome=mouse.genome,
+            maze=maze,
+            best_simulation=best_simulation
+        )
 
         pygame.display.flip()
-        clock.tick(10)  # 10 FPS per la GUI
+        clock.tick(10)  # 10 FPS
 
-    pygame.quit()
+    # NON chiamare pygame.quit() qui se vuoi riutilizzare la finestra
+    # La finestra rimarrà aperta per la prossima chiamata
+    return mouse  # Ritorna il mouse per eventuali analisi
+
+
+def cleanup_pygame():
+    """Chiamare questa funzione alla FINE di tutto il training"""
+    if pygame.get_init():
+        pygame.quit()
 
 
 if __name__ == '__main__':
-    best_simulation = True
-    local_dir = os.path.dirname(__file__)
-    config_file = os.path.join(local_dir, 'config-neat.ini')
-    config = neat.Config(
-        neat.DefaultGenome,
-        neat.DefaultReproduction,
-        neat.DefaultSpeciesSet,
-        neat.DefaultStagnation,
-        config_file
-    )
-    run(config=config)
+    try:
+        best_simulation = True
+        local_dir = os.path.dirname(__file__)
+        config_file = os.path.join(local_dir, 'config-neat.ini')
+        config = neat.Config(
+            neat.DefaultGenome,
+            neat.DefaultReproduction,
+            neat.DefaultSpeciesSet,
+            neat.DefaultStagnation,
+            config_file
+        )
+        run(config=config)
+    finally:
+        # Chiudi Pygame solo alla fine
+        cleanup_pygame()
