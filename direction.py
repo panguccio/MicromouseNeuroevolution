@@ -15,6 +15,7 @@ class Direction(Enum):
         """
         return 1 << self.value
 
+
     @property
     def dr(self):
         """returns the shift in the row after a change"""
