@@ -11,12 +11,11 @@ from mouse import Mouse
 loader = MazeLoader()
 generation = 0
 
-K = 4
-NUM_GENERATIONS = 200
+NUM_GENERATIONS = 600
 max_checkpoints = 3
-n_mazes = 5
-checkpoint_interval = 100
-maze_load_interval = 50
+n_mazes = 1
+checkpoint_interval = 50
+maze_load_interval = 100
 simulate = True
 
 bestest_mouse = Mouse()
@@ -29,13 +28,17 @@ mices = {}
 mazes = loader.get_random_mazes(n_mazes)
 counter = 0
 
-def load_new_mazes():
-    global mazes
-    mazes = loader.get_random_mazes(n_mazes)
-    print("🐁 Loaded new mazes:")
-    for maze in mazes:
-        print(f"\t * {maze.name}")
-    print("\n")
+def load_new_mazes(best_mouse):
+    global counter, mazes
+    if generation % maze_load_interval == 0:
+        counter += 1
+        if best_mouse.fitness >= 200 or counter == 3: # if the best does pretty good on these mazes, load new ones
+            counter = 0
+            mazes = loader.get_random_mazes(n_mazes)
+            print("🐁 Loaded new mazes:")
+            for maze in mazes:
+                print(f"\t * {maze.name}")
+            print("\n")
 
 def eval_genomes(genomes, config):
     global generation, bestest_mouse, mices, counter
@@ -81,6 +84,7 @@ def eval_genomes(genomes, config):
         if generation % checkpoint_interval == 0 and genome.fitness > best_mouse.fitness:
             best_mouse = mice[genome_id]
             mices[genome_id] = best_mouse
+            print(f"mices: {mices}")
             save_mouse(best_mouse, "latest")
         if genome.fitness > bestest_mouse.fitness:
             bestest_mouse = mice[genome_id]
@@ -91,23 +95,18 @@ def eval_genomes(genomes, config):
             print(f"Genome {genome_id}: fitness = {genome.fitness}")
 
     # Check fitness distribution
-    print(f"Fitness range: {min(fitness_values):.2f} to {max(fitness_values):.2f}")
-    print(f"Fitness average: {sum(fitness_values) / len(fitness_values):.2f}")
+    print(f"Fitness range: {min(fitness_values):.2f} to {max(fitness_values):.2f}\n")
 
-
-    if generation % maze_load_interval == 0:
-        counter += 1
-        if best_mouse.fitness >= 200 or counter > 4: # if the best does pretty good on these mazes, load new ones
-            counter = 0
-            load_new_mazes()
-
+    load_new_mazes(best_mouse)
     # start the simulation every x generations
-    if generation % checkpoint_interval == 0 and best_mouse is not None and simulate:
-        print(f"🎬 Simulation of the best mouse of generation {generation}... \n")
-        simulation.run(best_mouse, mazes[random.randint(0, n_mazes - 1)], config)
+    start_simulation(best_mouse, config, generation)
     generation += 1
 
 
+def start_simulation(best_mouse, config, generation):
+    if generation % checkpoint_interval == 0 and best_mouse is not None and simulate:
+        print(f"🎬 Simulation of the best mouse of generation {generation}... \n")
+        simulation.run(best_mouse, mazes[random.randint(0, n_mazes - 1)], config)
 
 
 def run(config_file):
@@ -172,6 +171,7 @@ def save_mouse(mouse, name):
 
 def debug():
     global mices
+    print("saving the best mice")
     filename = "log.txt"
     with open(os.path.join(directory, filename), 'a') as f:
         f.write("\n" + "=" * 80 + "\n\n")
@@ -185,8 +185,9 @@ def mouse_stats(mouse):
     position = f"\tlast position: {mouse.position} -> {mazes[0].man_distance_from_goal(mouse.position)} from goal\n"
     fitness = f"\tfitness: {mouse.fitness} = {mouse.fitness_values}\n"
     status = f"\tarrived? {mouse.arrived}. stuck? {mouse.stuck}. \n"
-    path = f"\tsteps: {mouse.actions}, num visited: {len(mouse.visited_cells)}, visited rate: {mouse.visit_rate_cost()}\n"
-    return genetics + status + position + fitness + path
+    path = f"\tsteps: {mouse.steps}, num visited: {len(mouse.visited_cells)}\n"
+    costs = f"visited cost: {mouse.steps/len(mouse.visited_cells)} -> {mouse.visit_rate_cost()}, collisions: {mouse.collisions} -> {mouse.collision_cost()}\n"
+    return genetics + status + position + fitness + path + costs
 
 if __name__ == '__main__':
     local_dir = os.path.dirname(__file__)
