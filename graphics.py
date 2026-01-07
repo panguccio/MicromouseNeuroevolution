@@ -29,9 +29,9 @@ NEG_VAL_COLOR = (255, 80, 80)  # Connessioni negative
 MOUSE_IMG_PATH = "mouse.png"
 
 # Input
-input_labels = ["L", "F", "R", "D", "X", "Y", "P", "S", "K", "I", "A"]
+input_labels = ["N", "E", "S", "W", "X", "Y", "P", "S", "B", "V", "A"]
 num_inputs = len(input_labels)
-num_outputs = 3
+num_outputs = 4
 
 
 if os.path.exists(MOUSE_IMG_PATH):
@@ -83,7 +83,7 @@ def draw_text(screen, text, x, y, size=18, color=TEXT_COLOR, bold=False):
 
 def get_death_reason(mouse):
     if mouse.alive: return "ALIVE"
-    if mouse.actions >= mice.max_steps: return "TIMEOUT"
+    if mouse.steps >= mice.max_steps: return "TIMEOUT"
     if mouse.arrived: return "GOAL!"
     if mouse.stuck: return "STUCK"
     return "CRASHED"
@@ -112,8 +112,8 @@ def draw_dashboard(screen, x, y, width, height, mouse, genome, maze, best_simula
         ("Distance", maze.man_distance_from_goal(mouse.position)),
         ("Current fitness", f"{mouse.fitness_values}"),
         ("Mean fitness", f"{mouse.fitness}"),
-        ("Turns/Steps", f"{mouse.turns}/{mouse.actions}"),
-        ("Visits per cell", f"{mouse.actions / len(mouse.visited_cells):.2f}"),
+        ("Steps", f"{mouse.steps}"),
+        ("Visits per cell", f"{mouse.steps / len(mouse.visited_cells):.2f}"),
     ]
 
     for item in stats:
