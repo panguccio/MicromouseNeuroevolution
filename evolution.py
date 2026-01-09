@@ -12,7 +12,7 @@ from mouse import Mouse
 loader = MazeLoader()
 generation = 0
 
-NUM_GENERATIONS = 300
+NUM_GENERATIONS = 600
 max_checkpoints = 3
 n_mazes = 1
 checkpoint_interval = 100
@@ -67,6 +67,7 @@ def restore_population(checkpoints):
     print(f"Deleted old checkpoints")
     return p
 
+
 def load_new_mazes(best_mouse):
     global counter, mazes
     if generation % maze_load_interval == 0:
@@ -79,22 +80,26 @@ def load_new_mazes(best_mouse):
                 print(f"\t * {maze.name}")
             print("\n")
 
-def start_simulation(best_mouse, config):
+
+def start_simulation(best_mouse):
     if not simulate:
         return
     if generation % checkpoint_interval == 0 and best_mouse is not None and simulate:
         print(f"🎬 Simulation of the best mouse of generation {generation}... \n")
         simulation.run(best_mouse, mazes[random.randint(0, n_mazes - 1)], config)
 
+
 def update_best(best_mouse, genome, genome_id, mice):
-    global bestest_mouse
+    global bestest_mouse, mices
     if generation % checkpoint_interval == 0 and genome.fitness > best_mouse.fitness:
         best_mouse = mice[genome_id]
         save_mouse(best_mouse, "latest")
+        mices[genome_id] = best_mouse
     if genome.fitness > bestest_mouse.fitness:
         bestest_mouse = mice[genome_id]
         save_mouse(bestest_mouse, "bestest")
     return best_mouse
+
 
 def save_mouse(m, name):
     path = os.path.join(directory, str(name) + "_mouse.pkl")
@@ -138,10 +143,10 @@ def eval_genomes(genomes, config):
     for genome_id, genome in genomes:
         mice[genome_id].compute_fitness_score()
         best_mouse = update_best(best_mouse, genome, genome_id, mice)
-        mices[genome_id] = best_mouse
+
 
     load_new_mazes(best_mouse)
-    start_simulation(best_mouse, config)
+    start_simulation(best_mouse)
     generation += 1
 
 
@@ -159,7 +164,7 @@ def run():
     visualize.plot_species(stats, view=True)
     debug()
 
-    start_simulation(bestest_mouse, config)
+    start_simulation(bestest_mouse)
     if simulate:
         print(f"🎬 Simulation of the BESTEST mouse... \n")
         simulation.run(sim_mouse=bestest_mouse, maze=mazes[random.choice(range(n_mazes))], config=config)
