@@ -2,10 +2,13 @@ import glob
 import os
 import pickle
 import random
+
 import neat
+
+import maze as mz
 import mouse
-import visualize
 import simulation
+import visualize
 from maze_loader import MazeLoader
 from mouse import Mouse
 
@@ -131,7 +134,7 @@ def eval_genomes(genomes, _):
 
     # creates the population of mice, linking them to the genomes
     for genome_id, genome in genomes:
-        mice[genome_id] = Mouse(start_position=mazes[0].start_cell,
+        mice[genome_id] = Mouse(start_position=mz.start_cell,
                                 genome=genome,
                                 gid=genome_id,
                                 generation=generation)
@@ -141,7 +144,8 @@ def eval_genomes(genomes, _):
             mice[genome_id].explore(config, maze)
 
     for genome_id, genome in genomes:
-        mice[genome_id].compute_fitness_score()
+        fitness = mice[genome_id].compute_fitness_score()
+        genome.fitness = fitness
         best_mouse = update_best(best_mouse, genome, genome_id, mice)
 
 
@@ -167,7 +171,7 @@ def run():
     start_simulation(bestest_mouse)
     if simulate:
         print(f"🎬 Simulation of the BESTEST mouse... \n")
-        simulation.run(sim_mouse=bestest_mouse, maze=mazes[random.choice(range(n_mazes))], configuration_file=config)
+        simulation.run(sim_mouse=bestest_mouse, maze=mazes[random.choice(range(n_mazes))])
 
 
 if __name__ == '__main__':

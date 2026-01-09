@@ -1,9 +1,11 @@
+import os
+import pickle
+
 import neat
 import pygame
-import pickle
-import os
 
 import graphics
+import maze as mz
 from maze_loader import MazeLoader
 from mouse import Mouse
 
@@ -30,7 +32,7 @@ def move_with_network(maze, mouse):
     outputs = mouse.net.activate(inputs)
     action = outputs.index(max(outputs))
     mouse.act(action, maze)
-    mouse.update_maze_score(maze, 0)
+    mouse.update_maze_score(0)
 
 
 def move_with_keys(event, maze, mouse):
@@ -45,7 +47,7 @@ def move_with_keys(event, maze, mouse):
             mouse.act(2, maze)
 
 
-def run(sim_mouse=None, maze=None):
+def run(sim_mouse=None, maze=None, configuration=None):
     global best_simulation, user_controlled
 
     if not pygame.get_init():
@@ -61,7 +63,7 @@ def run(sim_mouse=None, maze=None):
             sim_mouse = Mouse()
             user_controlled = True
 
-    mouse = Mouse(start_position=maze.start_cell,
+    mouse = Mouse(start_position=mz.start_cell,
                   generation=sim_mouse.generation,
                   fitness=sim_mouse.fitness,
                   genome=sim_mouse.genome,
@@ -90,7 +92,7 @@ def run(sim_mouse=None, maze=None):
 
     # Crea la rete PRIMA del loop se necessario
     if mouse.net is None and not user_controlled and mouse.genome is not None:
-        mouse.net = neat.nn.RecurrentNetwork.create(mouse.genome, config)
+        mouse.net = neat.nn.RecurrentNetwork.create(mouse.genome, configuration)
 
     running = True
 
@@ -102,6 +104,7 @@ def run(sim_mouse=None, maze=None):
                 continue
             move_with_keys(event, maze, mouse)
             mouse.update_maze_score(0)
+
 
         # Input from user (keys held down)
         keys = pygame.key.get_pressed()
@@ -138,7 +141,7 @@ def run(sim_mouse=None, maze=None):
             height=screen_height,
             mouse=mouse,
             genome=mouse.genome,
-            maze=maze,
+            m=maze,
             best_simulation=best_simulation
         )
 
@@ -167,7 +170,7 @@ if __name__ == '__main__':
             neat.DefaultStagnation,
             config_file
         )
-        run()
+        run(configuration=config)
     finally:
         # Chiudi Pygame solo alla fine
         cleanup_pygame()

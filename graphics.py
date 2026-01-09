@@ -3,10 +3,11 @@ import os
 
 import pygame
 
-from maze import Maze
+import maze
 import mouse as mice
-from mouse import Mouse
 from direction import Direction
+from maze import Maze
+from mouse import Mouse
 
 CELL_SIZE = 30
 BG_COLOR = (20, 20, 20)  # Sfondo generale
@@ -41,12 +42,13 @@ else:
     MOUSE_IMG = pygame.Surface((int(CELL_SIZE * 0.7), int(CELL_SIZE * 0.7)))
     MOUSE_IMG.fill((255, 255, 255))
 
-def draw_maze(screen, mouse, maze: Maze, offset_x=0, offset_y=0):
+
+def draw_maze(screen, mouse, m: Maze, offset_x=0, offset_y=0):
     if mouse.alive:
         wall_color = WALL_COLOR
     else:
         wall_color = TEXT_COLOR
-    size = maze.size
+    size = m.size
     pygame.draw.rect(screen, MAZE_BG_COLOR, (offset_x, offset_y, size * CELL_SIZE, size * CELL_SIZE))
 
     for r in range(size):
@@ -54,13 +56,13 @@ def draw_maze(screen, mouse, maze: Maze, offset_x=0, offset_y=0):
             x = c * CELL_SIZE + offset_x
             y = r * CELL_SIZE + offset_y
 
-            if maze.has_wall(Direction.N, r, c):
+            if m.has_wall(Direction.N, r, c):
                 pygame.draw.line(screen, wall_color, (x, y), (x + CELL_SIZE, y), WALL_THICKNESS)
-            if maze.has_wall(Direction.S, r, c):
+            if m.has_wall(Direction.S, r, c):
                 pygame.draw.line(screen, wall_color, (x, y + CELL_SIZE), (x + CELL_SIZE, y + CELL_SIZE), WALL_THICKNESS)
-            if maze.has_wall(Direction.W, r, c):
+            if m.has_wall(Direction.W, r, c):
                 pygame.draw.line(screen, wall_color, (x, y), (x, y + CELL_SIZE), WALL_THICKNESS)
-            if maze.has_wall(Direction.E, r, c):
+            if m.has_wall(Direction.E, r, c):
                 pygame.draw.line(screen, wall_color, (x + CELL_SIZE, y), (x + CELL_SIZE, y + CELL_SIZE), WALL_THICKNESS)
 
 def draw_mouse(screen, mouse: Mouse, offset_x=0, offset_y=0):
@@ -88,7 +90,8 @@ def get_death_reason(mouse):
     if mouse.stuck: return "STUCK"
     return "CRASHED"
 
-def draw_dashboard(screen, x, y, width, height, mouse, genome, maze, best_simulation):
+
+def draw_dashboard(screen, x, y, width, height, mouse, genome, m, best_simulation):
     # Sfondo
     pygame.draw.rect(screen, UI_BG_COLOR, (x, y, width, height))
     pygame.draw.line(screen, ACCENT_COLOR, (x, y), (x, height), 2)
@@ -99,7 +102,7 @@ def draw_dashboard(screen, x, y, width, height, mouse, genome, maze, best_simula
     # HEADER
     draw_text(screen, "MICROMOUSE AI", x + padding, current_y, 26, ACCENT_COLOR, bold=True)
     current_y += 35
-    draw_text(screen, f"Map: {maze.name}", x + padding, current_y, 16, (150, 150, 150))
+    draw_text(screen, f"Map: {m.name}", x + padding, current_y, 16, (150, 150, 150))
     current_y += 30
 
     # STATS
@@ -111,7 +114,7 @@ def draw_dashboard(screen, x, y, width, height, mouse, genome, maze, best_simula
         ("Current fitness", f"{mouse.fitness_values[0]:.2f}"),
         ("Mean fitness", f"{mouse.fitness:.2f}"),
         ("Steps", f"{mouse.steps}"),
-        ("Visits per cell", f"{mouse.steps / len(mouse.visited_cells()):.2f}"),
+        ("Visits per cell", f"{mouse.steps / len(mouse.visited_cells):.2f}"),
         ("Collisions", f"{mouse.collisions}"),
     ]
 
@@ -130,7 +133,7 @@ def draw_dashboard(screen, x, y, width, height, mouse, genome, maze, best_simula
     draw_text(screen, "Inputs", x + padding, current_y, 14, ACCENT_COLOR)
     current_y += 50  # Aumentato spazio per non sovrapporre
 
-    inputs = mouse.get_inputs(maze)
+    inputs = mouse.get_inputs(m)
     bar_width = (width - 2 * padding) / num_inputs
 
     for i, val in enumerate(inputs[:num_inputs]):

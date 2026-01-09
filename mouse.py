@@ -1,7 +1,8 @@
 import neat
-from maze import Maze
+
 import maze
 from direction import Direction
+from maze import Maze
 
 BONUS = 500
 maze_size = 16
@@ -27,9 +28,8 @@ class Mouse:
         self.fate = "ALIVE"
 
         # MEMORY
-        self.path_sequence = []
-        self.path_sequence.append(self.start_position)
-        self.saturated_cells = set()
+        self.visited_cells = set()
+        self.visited_cells.add(self.start_position)
 
         # FOR COST COMPUTATION
         self.steps = 0
@@ -56,8 +56,8 @@ class Mouse:
         self.position = self.start_position
         self.fate = "ALIVE"
 
-        self.path_sequence = []
-        self.path_sequence.append(self.start_position)
+        self.visited_cells = set()
+        self.visited_cells.add(self.start_position)
 
         self.direction = Direction.N
         self.arrived = False
@@ -143,7 +143,7 @@ class Mouse:
     # ---
 
     def increment_path(self, position):
-        self.path_sequence.append(position)
+        self.visited_cells.add(position)
 
     def move(self, d: Direction, m: Maze):
         self.direction = d
@@ -195,9 +195,6 @@ class Mouse:
         if self.fate == "ALIVE" and not self.alive: return "CRASHED"
         return self.fate
 
-    def visited_cells(self):
-        return set(self.path_sequence)
-
     # ---
     # Maze exploration
     # ---
@@ -217,8 +214,8 @@ class Mouse:
         position = f"\tlast position: {self.position} -> {maze.manhattan_distance_from_goal(self.position)} from goal\n"
         fitness = f"\tfitness: {self.fitness} = {self.fitness_values}\n"
         status = f"\tarrived? {self.arrived}. stuck? {self.stuck}. \n"
-        path = f"\tsteps: {self.steps}, num visited: {len(self.visited_cells())}\n"
-        costs = f"visits/cell: {self.visit_rate()}; coverage: {(len(self.visited_cells())/(maze_size**2)):.2f}%; collisions: {self.collisions}\n"
+        path = f"\tsteps: {self.steps}, num visited: {len(self.visited_cells)}\n"
+        costs = f"visits/cell: {self.steps / len(self.visited_cells)}; coverage: {(100 * len(self.visited_cells) / (maze_size ** 2)):.2f}%; collisions: {self.collisions}\n"
         return genetics + status + position + fitness + path + costs
 
     # ---
@@ -227,7 +224,6 @@ class Mouse:
 
     def compute_fitness_score(self):
         self.fitness = sum(self.fitness_values) / len(self.fitness_values)
-        self.genome.fitness = self.fitness
         return self.fitness
 
     def compute_maze_score(self):
@@ -245,9 +241,5 @@ class Mouse:
         if self.arrived:
             fitness = BONUS + max(0, max_steps - self.steps)
         else:
-            fitness = len(self.visited_cells()) / (1 + self.collisions + self.visit_rate())
+            fitness = len(self.visited_cells) / (1 + self.collisions)
         return fitness
-
-    def visit_rate(self):
-        visit_rate = (self.steps / len(self.visited_cells()))
-        return visit_rate
