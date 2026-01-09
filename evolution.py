@@ -12,7 +12,7 @@ from mouse import Mouse
 loader = MazeLoader()
 generation = 0
 
-NUM_GENERATIONS = 600
+NUM_GENERATIONS = 300
 max_checkpoints = 3
 n_mazes = 1
 checkpoint_interval = 100

@@ -236,6 +236,54 @@ class Mouse:
         if self.fate == "ALIVE" and not self.alive: return "CRASHED"
         return self.fate
 
+    def visited_cells(self):
+        return set(self.path_sequence)
+
+    def phenotype_distance(self, mouse):
+        """
+        returns the Levenshtein distance between the sequence of cells the 2 mice explored.
+        """
+        def levenshtein(s1, s2):
+            def head(s):
+                return s[0]
+            def tail(s):
+                return s[1:]
+
+            if len(s1) == 0:
+                return len(s2)
+            if len(s2) == 0:
+                return len(s1)
+            if head(s1) == head(s2):
+                return levenshtein(tail(s1), tail(s2))
+            else:
+                return 1 + min(levenshtein(tail(s1), s2), levenshtein(s1, tail(s2)), levenshtein(tail(s1), tail(s2)))
+
+        return levenshtein(self.path_sequence, mouse.path_sequence)
+
+
+    # ---
+    # Maze exploration
+    # ---
+
+    def explore(self, config, maze):
+        self.reset()
+        self.net = neat.nn.RecurrentNetwork.create(self.genome, config)
+        while self.alive:
+            inputs = self.get_inputs(maze)
+            outputs = self.net.activate(inputs)
+            action = outputs.index(max(outputs))
+            self.act(action, maze)
+        self.compute_maze_score(maze)
+
+    def stats(self):
+        genetics = f"\tgeneration: {self.generation}; gid: {self.gid}\n"
+        position = f"\tlast position: {self.position} -> {self.inner_maze.manhattan_distance_from_goal(self.position)} from goal\n"
+        fitness = f"\tfitness: {self.fitness} = {self.fitness_values}\n"
+        status = f"\tarrived? {self.arrived}. stuck? {self.stuck}. \n"
+        path = f"\tsteps: {self.actions}, num visited: {len(self.visited_cells())}\n"
+        costs = f"visited cost: {self.actions / len(self.visited_cells())} -> {self.visit_rate_cost()}, collisions: {self.collisions} -> {self.collision_cost()}\n"
+        return genetics + status + position + fitness + path + costs
+
     # ---
     # Fitness
     # ---
@@ -258,18 +306,18 @@ class Mouse:
 
     def compute_fitness(self, maze):
         if self.arrived:
-            fitness = BONUS + max(0, max_steps - self.actions)
-            fitness = fitness * (1 + self.behaviour_delta())
+            fitness = BONUS + max(0, max_steps - len(self.path_sequence))
+            # fitness = fitness * (1 + self.behaviour_delta())
         else:
-            distance_score = self.compute_distance_score(maze)
-            fitness = distance_score * (1 + self.behaviour_delta())
+            fitness = self.compute_distance_score(maze)
+            # fitness = fitness * (1 + self.behaviour_delta())
         return fitness
 
     def compute_distance_score(self, maze):
-        max_distance = maze.manhattan_distance_from_gate(self.start_position)
-        closest_distance = min(maze.manhattan_distance_from_gate(position) for position in self.visited_cells())
-        score_closest_distance = (max_distance - closest_distance) / self.coverage()
-        return 10 * score_closest_distance
+        max_distance = maze.manhattan_distance_from_goal(self.start_position)
+        closest_distance = min(maze.manhattan_distance_from_goal(position) for position in self.visited_cells())
+        score_closest_distance = (max_distance - closest_distance) # / self.coverage()
+        return 10 * score_closest_distance + 10 * (1 - len(self.path_sequence)/max_steps)
 
     def behaviour_delta(self):
         """
