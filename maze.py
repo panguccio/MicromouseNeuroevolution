@@ -1,27 +1,34 @@
 import numpy as np
 from direction import Direction
 
-
-class Maze:
-
-    def __init__(self, text=None, name="", size=16):
-        self.size = size
-        self.grid = np.zeros((size, size), dtype=np.uint8)
-        self.start_cell = (15, 0)
-        self.name = name
-        self.max_steps = 2 * size ** 2
-        mid = size // 2
-        self.goal_cells = [
+size = 16
+mid = size // 2
+goal_cells = [
             (mid - 1, mid - 1),  # top-left
             (mid - 1, mid),  # top-right
             (mid, mid),  # bottom-right
             (mid, mid - 1)  # bottom-left
         ]
-        self.destination = ()
-        if text is not None:
-            self._from_text(text, size)
+start_cell = (15, 0)
 
-    def _from_text(self, text, size):
+
+def manhattan_distance_from_goal(pointed_cell):
+    return min(manhattan(pointed_cell, goal_cell) for goal_cell in goal_cells)
+
+def is_in_goal(pointed_cell):
+    return manhattan_distance_from_goal(pointed_cell) == 0
+
+class Maze:
+
+    def __init__(self, text=None, name=""):
+        global goal_cells
+        self.size = size
+        self.grid = np.zeros((size, size), dtype=np.uint8)
+        self.name = name
+        if text is not None:
+            self._from_text(text)
+
+    def _from_text(self, text):
         rows = size * 2 + 1
         columns = size * 4 + 1
         for row in range(rows):
@@ -41,14 +48,6 @@ class Maze:
                         cell = (row // 2, column // 4)
                         self.add_wall(direction, *cell)
                         pass
-        self.find_destination()
-
-    def find_destination(self):
-        directions = [[Direction.W, Direction.N], [Direction.N, Direction.E], [Direction.E, Direction.S], [Direction.S, Direction.W]]
-        for i, (r, c) in enumerate(self.goal_cells):
-            for d in directions[i]:
-                if not self.has_wall(d, r, c):
-                    self.destination = (r + d.dr, c + d.dc)
 
 
 
@@ -144,12 +143,6 @@ class Maze:
                 if self.has_wall(direction, *cell):
                     return step
 
-    def manhattan_distance_from_gate(self, pointed_cell):
-        return manhattan(pointed_cell, self.destination)
-
-    def manhattan_distance_from_goal(self, pointed_cell):
-        return min(manhattan(pointed_cell, goal_cell) for goal_cell in self.goal_cells)
-
     def x_distance_from_goal(self, pointed_cell):
         return abs(self.destination[1] - pointed_cell[1])
 
@@ -164,8 +157,6 @@ class Maze:
             if min(cell_a) == i or max(cell_a) == self.size - 1 - i:
                 return self.size // 2 - 1 - i
 
-    def is_in_goal(self, pointed_cell):
-        return self.manhattan_distance_from_goal(pointed_cell) == 0
 
 def manhattan(cell_a, cell_b):
     return abs(cell_a[0] - cell_b[0]) + abs(cell_a[1] - cell_b[1])
