@@ -36,10 +36,12 @@ def move_with_network(maze, mouse):
 def move_with_keys(event, maze, mouse):
     if event.type == pygame.KEYDOWN:
         if event.key == pygame.K_UP:
-            mouse.act(1, maze)
-        if event.key == pygame.K_LEFT:
             mouse.act(0, maze)
+        if event.key == pygame.K_LEFT:
+            mouse.act(3, maze)
         if event.key == pygame.K_RIGHT:
+            mouse.act(1, maze)
+        if event.key == pygame.K_DOWN:
             mouse.act(2, maze)
 
 
