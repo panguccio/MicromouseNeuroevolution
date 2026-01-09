@@ -29,7 +29,7 @@ NEG_VAL_COLOR = (255, 80, 80)  # Connessioni negative
 MOUSE_IMG_PATH = "mouse.png"
 
 # Input
-input_labels = ["L", "F", "R", "D", "X", "Y", "P", "S", "K", "I", "A"]
+input_labels = ["L", "F", "R", "D", "X", "Y", "P", "S", "K", "I"]
 num_inputs = len(input_labels)
 num_outputs = 3
 
@@ -109,11 +109,12 @@ def draw_dashboard(screen, x, y, width, height, mouse, genome, maze, best_simula
     stats = [
         ("Genome", mouse.gid),
         ("Status", mouse.check_fate(), SUCCESS_COLOR if mouse.arrived else reason_color),
-        ("Distance", maze.man_distance_from_goal(mouse.position)),
+        ("Distance", maze.manhattan_distance_from_goal(mouse.position)),
         ("Current fitness", f"{mouse.fitness_values}"),
         ("Mean fitness", f"{mouse.fitness}"),
         ("Turns/Steps", f"{mouse.turns}/{mouse.actions}"),
-        ("Visits per cell", f"{mouse.actions / len(mouse.visited_cells):.2f}"),
+        ("Visits per cell", f"{mouse.actions / len(mouse.visited_cells()):.2f}"),
+        ("Collisions", f"{mouse.collisions}"),
     ]
 
     for item in stats:

@@ -46,7 +46,6 @@ def move_with_keys(event, maze, mouse):
 def run(sim_mouse=None, maze=None, config=None):
     global best_simulation, user_controlled
 
-    # Inizializza Pygame UNA SOLA VOLTA per sessione
     if not pygame.get_init():
         pygame.init()
 
@@ -100,6 +99,7 @@ def run(sim_mouse=None, maze=None, config=None):
                 running = False
                 continue
             move_with_keys(event, maze, mouse)
+            mouse.update_maze_score(maze, 0)
 
         # Input from user (keys held down)
         keys = pygame.key.get_pressed()
@@ -149,7 +149,6 @@ def run(sim_mouse=None, maze=None, config=None):
 
 
 def cleanup_pygame():
-    """Chiamare questa funzione alla FINE di tutto il training"""
     if pygame.get_init():
         pygame.quit()
 
