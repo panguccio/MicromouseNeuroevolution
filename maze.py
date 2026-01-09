@@ -18,6 +18,15 @@ def manhattan_distance_from_goal(pointed_cell):
 def is_in_goal(pointed_cell):
     return manhattan_distance_from_goal(pointed_cell) == 0
 
+
+def x_distance_from_goal(pointed_cell):
+    return min([abs(goal_cell[1] - pointed_cell[1]) for goal_cell in goal_cells])
+
+
+def y_distance_from_goal(pointed_cell):
+    return min([abs(goal_cell[0] - pointed_cell[0]) for goal_cell in goal_cells])
+
+
 class Maze:
 
     def __init__(self, text=None, name=""):
@@ -115,7 +124,6 @@ class Maze:
 
     def print_grid(self):
         """prints the grid"""
-        size = self.size
         for r in range(size):
             line = "+"
             for c in range(size):
@@ -142,12 +150,6 @@ class Maze:
             if self.in_bounds(*cell):
                 if self.has_wall(direction, *cell):
                     return step
-
-    def x_distance_from_goal(self, pointed_cell):
-        return abs(self.destination[1] - pointed_cell[1])
-
-    def y_distance_from_goal(self, pointed_cell):
-        return abs(self.destination[0] - pointed_cell[0])
 
     def range_distance_from_goal(self, pointed_cell):
         return self.range_distance(pointed_cell)

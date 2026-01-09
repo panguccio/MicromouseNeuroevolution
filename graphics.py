@@ -103,8 +103,6 @@ def draw_dashboard(screen, x, y, width, height, mouse, genome, maze, best_simula
     current_y += 30
 
     # STATS
-    status_text = "ALIVE" if mouse.alive else "DEAD"
-    status_color = SUCCESS_COLOR if mouse.alive else (150, 150, 150)
     reason_color = ACCENT_COLOR if not mouse.alive else TEXT_COLOR
     stats = [
         ("Genome", mouse.gid),

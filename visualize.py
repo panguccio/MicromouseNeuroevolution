@@ -165,8 +165,6 @@ def draw_net(config, genome, view=False, filename=None, node_names=None, show_di
 
     for cg in genome.connections.values():
         if cg.enabled or show_disabled:
-            # if cg.input not in used_nodes or cg.output not in used_nodes:
-            #    continue
             input, output = cg.key
             a = node_names.get(input, str(input))
             b = node_names.get(output, str(output))

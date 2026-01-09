@@ -45,7 +45,7 @@ def move_with_keys(event, maze, mouse):
             mouse.act(2, maze)
 
 
-def run(sim_mouse=None, maze=None, config=None):
+def run(sim_mouse=None, maze=None):
     global best_simulation, user_controlled
 
     if not pygame.get_init():
@@ -101,7 +101,7 @@ def run(sim_mouse=None, maze=None, config=None):
                 running = False
                 continue
             move_with_keys(event, maze, mouse)
-            mouse.update_maze_score(maze, 0)
+            mouse.update_maze_score(0)
 
         # Input from user (keys held down)
         keys = pygame.key.get_pressed()
@@ -167,7 +167,7 @@ if __name__ == '__main__':
             neat.DefaultStagnation,
             config_file
         )
-        run(config=config)
+        run()
     finally:
         # Chiudi Pygame solo alla fine
         cleanup_pygame()

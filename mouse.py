@@ -1,5 +1,6 @@
 import neat
 from maze import Maze
+import maze
 from direction import Direction
 
 BONUS = 500
@@ -74,17 +75,17 @@ class Mouse:
     # Input processing
     # ---
 
-    def get_inputs(self, maze: Maze):
+    def get_inputs(self, m: Maze):
         # values are normalized
         inputs = [
-            self.sense_north(maze),
-            self.sense_east(maze),
-            self.sense_south(maze),
-            self.sense_west(maze),
+            self.sense_north(m),
+            self.sense_east(m),
+            self.sense_south(m),
+            self.sense_west(m),
             self.has_bumped(),
-            self.relative_position_x(maze),
-            self.relative_position_y(maze),
-            self.proximity(maze),
+            self.relative_position_x(),
+            self.relative_position_y(),
+            self.proximity(m),
         ]
         return inputs
 
@@ -92,20 +93,20 @@ class Mouse:
     # Sensor logic
     # ---
 
-    def sense_north(self, maze: Maze):
-        return self.sense(maze, Direction.N, self.sight)
+    def sense_north(self, m: Maze):
+        return self.sense(m, Direction.N, self.sight)
 
-    def sense_east(self, maze: Maze):
-        return self.sense(maze, Direction.E, self.sight)
+    def sense_east(self, m: Maze):
+        return self.sense(m, Direction.E, self.sight)
 
-    def sense_south(self, maze: Maze):
-        return self.sense(maze, Direction.S, self.sight)
+    def sense_south(self, m: Maze):
+        return self.sense(m, Direction.S, self.sight)
 
-    def sense_west(self, maze: Maze):
-        return self.sense(maze, Direction.W, self.sight)
+    def sense_west(self, m: Maze):
+        return self.sense(m, Direction.W, self.sight)
 
-    def sense(self, maze: Maze, direction, sight):
-        distance = maze.first_wall(direction, *self.position, sight)
+    def sense(self, m: Maze, direction, sight):
+        distance = m.first_wall(direction, *self.position, sight)
         if distance is None:
             return 0
         return 1 - distance / sight
@@ -117,15 +118,15 @@ class Mouse:
     def has_bumped(self):
         return 1 if self.bumped else 0
 
-    def proximity(self, maze: Maze):
+    def proximity(self, m: Maze):
         """in which 'circle' it's positioned the mouse, that is, how close it's to the center"""
-        return (maze_size // 2 - 1 - maze.range_distance_from_goal(self.position)) / (maze_size // 2 - 1)
+        return (maze_size // 2 - 1 - m.range_distance_from_goal(self.position)) / (maze_size // 2 - 1)
 
-    def relative_position_x(self, maze):
+    def relative_position_x(self):
         max_distance = maze.x_distance_from_goal(self.start_position)
         return (max_distance - maze.x_distance_from_goal(self.position)) / max_distance
 
-    def relative_position_y(self, maze):
+    def relative_position_y(self):
         max_distance = maze.y_distance_from_goal(self.start_position)
         return (max_distance - maze.y_distance_from_goal(self.position)) / max_distance
 
@@ -144,12 +145,12 @@ class Mouse:
     def increment_path(self, position):
         self.path_sequence.append(position)
 
-    def move(self, d: Direction, maze: Maze):
+    def move(self, d: Direction, m: Maze):
         self.direction = d
         r, c = self.position
 
         # checks if there's a wall
-        if maze.has_wall(d, r, c):
+        if m.has_wall(d, r, c):
             self.collisions += 1
             self.bumped = True
             return
@@ -158,11 +159,11 @@ class Mouse:
         self.position = (r + self.direction.dr, c + self.direction.dc)
         self.increment_path(self.position)
 
-    def act(self, direction, maze: Maze):
+    def act(self, direction, m: Maze):
         if self.bumped:
             self.bumped = False
         self.steps += 1
-        self.move(Direction(direction), maze)
+        self.move(Direction(direction), m)
 
         # Controlla se è arrivato al goal
         if maze.is_in_goal(self.position):
@@ -201,18 +202,17 @@ class Mouse:
     # Maze exploration
     # ---
 
-    def explore(self, config, maze):
+    def explore(self, config, m: Maze):
         self.reset()
         self.net = neat.nn.RecurrentNetwork.create(self.genome, config)
         while self.alive:
-            inputs = self.get_inputs(maze)
+            inputs = self.get_inputs(m)
             outputs = self.net.activate(inputs)
             action = outputs.index(max(outputs))
-            self.act(action, maze)
-        self.compute_maze_score(maze)
+            self.act(action, m)
+        self.compute_maze_score()
 
     def stats(self):
-        import maze
         genetics = f"\tgeneration: {self.generation}; gid: {self.gid}\n"
         position = f"\tlast position: {self.position} -> {maze.manhattan_distance_from_goal(self.position)} from goal\n"
         fitness = f"\tfitness: {self.fitness} = {self.fitness_values}\n"
@@ -230,18 +230,18 @@ class Mouse:
         self.genome.fitness = self.fitness
         return self.fitness
 
-    def compute_maze_score(self, maze):
-        fitness = self.compute_fitness(maze)
+    def compute_maze_score(self):
+        fitness = self.compute_fitness()
         self.fitness_values.append(max(fitness, 0))
 
-    def update_maze_score(self, maze, i):
-        fitness = self.compute_fitness(maze)
+    def update_maze_score(self, i):
+        fitness = self.compute_fitness()
         if len(self.fitness_values) <= i:
             self.fitness_values.append(max(fitness, 0))
         else:
             self.fitness_values[i] = max(fitness, 0)
 
-    def compute_fitness(self, maze):
+    def compute_fitness(self):
         if self.arrived:
             fitness = BONUS + max(0, max_steps - self.steps)
         else:

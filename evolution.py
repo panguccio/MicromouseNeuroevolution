@@ -123,7 +123,7 @@ def debug():
             f.write("-" * 80 + "\n")
 
 
-def eval_genomes(genomes, config):
+def eval_genomes(genomes, _):
     global generation, bestest_mouse, mices, counter
     best_mouse = Mouse()
 
@@ -167,7 +167,7 @@ def run():
     start_simulation(bestest_mouse)
     if simulate:
         print(f"🎬 Simulation of the BESTEST mouse... \n")
-        simulation.run(sim_mouse=bestest_mouse, maze=mazes[random.choice(range(n_mazes))], config=config)
+        simulation.run(sim_mouse=bestest_mouse, maze=mazes[random.choice(range(n_mazes))], configuration_file=config)
 
 
 if __name__ == '__main__':
