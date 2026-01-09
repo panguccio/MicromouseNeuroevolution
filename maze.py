@@ -17,6 +17,7 @@ class Maze:
             (mid, mid),  # bottom-right
             (mid, mid - 1)  # bottom-left
         ]
+        self.destination = ()
         if text is not None:
             self._from_text(text, size)
 
@@ -40,6 +41,17 @@ class Maze:
                         cell = (row // 2, column // 4)
                         self.add_wall(direction, *cell)
                         pass
+        self.find_destination()
+
+    def find_destination(self):
+        directions = [[Direction.W, Direction.N], [Direction.N, Direction.E], [Direction.E, Direction.S], [Direction.S, Direction.W]]
+        for i, (r, c) in enumerate(self.goal_cells):
+            for d in directions[i]:
+                if not self.has_wall(d, r, c):
+                    self.destination = (r + d.dr, c + d.dc)
+
+
+
 
     def in_bounds(self, row, column):
         """checks if a cell is in maze bounds"""
@@ -132,28 +144,29 @@ class Maze:
                 if self.has_wall(direction, *cell):
                     return step
 
-    def man_distance_from_goal(self, pointed_cell):
-        # the manhattan distance from the closest goal cell
-        return min(man_distance(pointed_cell, goal_cell) for goal_cell in self.goal_cells)
+    def manhattan_distance_from_gate(self, pointed_cell):
+        return manhattan(pointed_cell, self.destination)
+
+    def manhattan_distance_from_goal(self, pointed_cell):
+        return min(manhattan(pointed_cell, goal_cell) for goal_cell in self.goal_cells)
 
     def x_distance_from_goal(self, pointed_cell):
-        return min([abs(goal_cell[1] - pointed_cell[1]) for goal_cell in self.goal_cells])
+        return abs(self.destination[1] - pointed_cell[1])
 
     def y_distance_from_goal(self, pointed_cell):
-        return min([abs(goal_cell[0] - pointed_cell[0]) for goal_cell in self.goal_cells])
+        return abs(self.destination[0] - pointed_cell[0])
 
-    def minmax_distance_from_goal(self, pointed_cell):
-        return self.minmax_distance(pointed_cell)
+    def range_distance_from_goal(self, pointed_cell):
+        return self.range_distance(pointed_cell)
 
-    def minmax_distance(self, cell_a):
+    def range_distance(self, cell_a):
         for i in range(self.size // 2): # 0 to 8
             if min(cell_a) == i or max(cell_a) == self.size - 1 - i:
                 return self.size // 2 - 1 - i
 
     def is_in_goal(self, pointed_cell):
-        return self.man_distance_from_goal(pointed_cell) == 0
+        return self.manhattan_distance_from_goal(pointed_cell) == 0
 
-
-def man_distance(cell_a, cell_b):
+def manhattan(cell_a, cell_b):
     return abs(cell_a[0] - cell_b[0]) + abs(cell_a[1] - cell_b[1])
 

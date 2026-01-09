@@ -1,25 +1,18 @@
+import math
+
+import neat
+
 import maze as mz
 from maze import Maze
 from direction import Direction
 
-# FITNESS WEIGHTS
-COST_WEIGHT = 100 # 100
-DISTANCE_WEIGHT = 150
-NOVELTY_WEIGHT = 100
-BONUS = 100
-
+BONUS = 500
 maze_size = 16
 
 # MAX CONSTANTS
 max_visits = 15
-max_stuck_counter = 20
-max_actions = 200
-
-# COST CONSTANTS
-STEP_COST = 0.01
-TURN_COST = COST_WEIGHT / 200
-COLLISION_COST = 1
-STUCK_COST = COST_WEIGHT / 4
+max_steps = maze_size ** 2
+max_stuck_counter = max_steps // 3
 
 
 class Mouse:
@@ -39,8 +32,8 @@ class Mouse:
 
         # MEMORY
         self.inner_maze = Maze(size=maze_size)
-        self.visited_cells = set()
-        self.visited_cells.add(start_position)
+        self.path_sequence = []
+        self.path_sequence.append(self.start_position)
         self.inner_maze.add_visit(*start_position)
         self.saturated_cells = set()
         self.last_action = 0.5
@@ -71,8 +64,8 @@ class Mouse:
         self.fate = "ALIVE"
 
         self.inner_maze = Maze(size=maze_size)
-        self.visited_cells = set()
-        self.visited_cells.add(self.start_position)
+        self.path_sequence = []
+        self.path_sequence.append(self.start_position)
         self.last_action = 0.5
 
         self.direction = Direction.N
@@ -104,8 +97,7 @@ class Mouse:
             self.proximity(maze),
             self.get_steps(),
             self.stuckness(),
-            self.visit_intensity(),
-            self.last_action
+            self.visit_intensity()
         ]
         return inputs
 
@@ -134,15 +126,9 @@ class Mouse:
     # Other inputs
     # ---
 
-    def visit_intensity(self):
-        """how much the cell on the front of the mouse has been visited, max 15 times (ratio in [0, 1])"""
-        row, column = self.position
-        visits = self.inner_maze.get_visits(row + self.direction.dr, column + self.direction.dc)
-        return float(visits) / max_visits
-
     def proximity(self, maze: Maze):
         """in which 'circle' it's positioned the mouse, that is, how close it's to the center"""
-        return (maze_size // 2 - 1 - maze.minmax_distance_from_goal(self.position)) / (maze_size // 2 - 1)
+        return (maze_size // 2 - 1 - maze.range_distance_from_goal(self.position)) / (maze_size // 2 - 1)
 
     def relative_position_x(self, maze):
         max_distance = maze.x_distance_from_goal(self.start_position)
@@ -156,13 +142,18 @@ class Mouse:
         return self.direction.value / Direction.W.value
 
     def get_steps(self):
-        return self.actions / max_actions
+        return (self.actions - self.turns - self.collisions) / max_steps
 
     def stuckness(self):
         if self.stuck_counter > max_visits:
             return 1
         return self.stuck_counter / max_visits
 
+    def visit_intensity(self):
+        """how much the cell on the front of the mouse has been visited, max 15 times (ratio in [0, 1])"""
+        row, column = self.position
+        visits = self.inner_maze.get_visits(row + self.direction.dr, column + self.direction.dc)
+        return float(visits) / max_visits
 
     # ---
     # Movement
@@ -179,8 +170,7 @@ class Mouse:
         self.direction = self.direction.right
 
     def increment_path(self, position):
-        if position not in self.visited_cells:
-            self.visited_cells.add(position)
+        self.path_sequence.append(position)
         self.inner_maze.add_visit(*position)
 
     def move_ahead(self, maze: Maze):
@@ -216,8 +206,7 @@ class Mouse:
             self.alive = False
             return
 
-        # Controlla altre condizioni di terminazione
-        if self.actions >= max_actions:
+        if self.actions - self.turns - self.collisions >= max_steps:
             self.fate = "TIMEOUT"
             self.alive = False
             return
@@ -228,7 +217,6 @@ class Mouse:
             self.stuck = True
             self.fate = "STUCK"
             self.alive = False
-            # self.cost += STUCK_COST
             return
 
         self.last_position = self.position
@@ -254,6 +242,7 @@ class Mouse:
 
     def compute_fitness_score(self):
         self.fitness = sum(self.fitness_values) / len(self.fitness_values)
+        self.genome.fitness = self.fitness
         return self.fitness
 
     def compute_maze_score(self, maze):
@@ -269,43 +258,43 @@ class Mouse:
 
     def compute_fitness(self, maze):
         if self.arrived:
-                fitness = BONUS + max(0, max_actions + 100 - self.actions - self.turns)
+            fitness = BONUS + max(0, max_steps - self.actions)
+            fitness = fitness * (1 + self.behaviour_delta())
         else:
             distance_score = self.compute_distance_score(maze)
-            performance = self.compute_performance()
-            fitness = distance_score + performance
+            fitness = distance_score * (1 + self.behaviour_delta())
         return fitness
 
     def compute_distance_score(self, maze):
-        max_distance = maze.minmax_distance_from_goal(self.start_position)
-        closest_distance = min(maze.minmax_distance_from_goal(position) for position in self.visited_cells)
-        distance_score = max_distance - closest_distance
-        return int(distance_score * 10)
+        max_distance = maze.manhattan_distance_from_gate(self.start_position)
+        closest_distance = min(maze.manhattan_distance_from_gate(position) for position in self.visited_cells())
+        score_closest_distance = (max_distance - closest_distance) / self.coverage()
+        return 10 * score_closest_distance
 
-    def compute_performance(self):
-        performance = 9
+    def behaviour_delta(self):
+        """
+        value in [-0.1, 0.1] to modify the fitness of ±10% for the mouse behaviour.
+        """
+        score = 1
         if self.stuck:
-            performance -= 3
-        performance -= self.visit_rate_cost()
-        performance -= self.turn_cost()
-        performance -= self.collision_cost()
-        return max(0, int(performance))
-
-    def visit_rate_cost(self):
-        visit_rate = self.actions / len(self.visited_cells)
-        return (visit_rate > 2) + (visit_rate > 4) + (visit_rate > 8) + (visit_rate > 12) + (visit_rate > 14)
+            score -= 0.25
+        score -= 0.25 * self.turn_cost()
+        score -= 0.25 * self.visit_rate_cost()
+        score -= 0.25 * self.collision_cost()
+        return score / 5 - 0.1
 
     def turn_cost(self):
-        turn_rate = 100 * self.turns / max_actions
-        return (turn_rate > 10) + (turn_rate > 20) + (turn_rate > 30) + (turn_rate > 50) + (turn_rate > 70)
+        turn_rate = self.turns / (1 + self.actions)
+        return 1 / (1 + math.exp(-8 * (turn_rate - 0.55)))
+
+    def visit_rate_cost(self):
+        visit_rate = self.actions / len(self.visited_cells())
+        return visit_rate / (visit_rate + 3)
 
     def collision_cost(self):
-        return (self.collisions > 1) + (self.collisions > 3) + (self.collisions > 5)
+        return self.collisions / (self.collisions + 2)
 
-
-
-
-
-
-
+    def coverage(self):
+        coverage_rate = len(self.visited_cells()) / (maze_size ** 2)
+        return 1 + (1 - coverage_rate) ** 2.8
 
