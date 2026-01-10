@@ -78,7 +78,7 @@ def setup_screen(maze):
     return screen, maze_offset_y
 
 
-def run(mouse=None, maze=None, configuration=None):
+def run(mice=None, maze=None, configuration=None):
     """Run the simulation with the specified mouse and maze."""
     loader = MazeLoader()
 
@@ -89,80 +89,78 @@ def run(mouse=None, maze=None, configuration=None):
         maze = loader.get_random_maze()
 
     mode = SimulationMode.TRAINING
-
-    if mouse is None or mouse.genome is None:
-        try:
-            mouse = load_best_mouse()
-            mode = SimulationMode.BEST
-        except FileNotFoundError:
-            mouse = Mouse()
-            mode = SimulationMode.USER_CONTROLLED
-
-    mouse.reset()
+    for mouse in mice:
+        if mouse is None or mouse.genome is None:
+            try:
+                mouse = load_best_mouse()
+                mode = SimulationMode.BEST
+            except FileNotFoundError:
+                mouse = Mouse()
+                mode = SimulationMode.USER_CONTROLLED
+        mouse.reset()
+        if (mouse.net is None and
+                mode != SimulationMode.USER_CONTROLLED and
+                mouse.genome is not None):
+            mouse.net = neat.nn.RecurrentNetwork.create(mouse.genome, configuration)
 
     # Setup display
     pygame.display.set_caption(get_window_caption(mode, mouse))
     screen, maze_offset_y = setup_screen(maze)
     clock = pygame.time.Clock()
 
-    if (mouse.net is None and
-            mode != SimulationMode.USER_CONTROLLED and
-            mouse.genome is not None):
-        mouse.net = neat.nn.RecurrentNetwork.create(mouse.genome, configuration)
+    for i, mouse in enumerate(mice):
 
-    running = True
+        running = True
 
-    while running:
+        while running:
 
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-                continue
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+                    continue
 
-            if mode == SimulationMode.USER_CONTROLLED:
-                move_with_keys(event, maze, mouse)
+                if mode == SimulationMode.USER_CONTROLLED:
+                    move_with_keys(event, maze, mouse)
 
-        keys = pygame.key.get_pressed()
+            keys = pygame.key.get_pressed()
 
-        if keys[pygame.K_k]:
+            if keys[pygame.K_k]:
+                if mouse.alive:
+                    mouse.alive = False
+                elif mode == SimulationMode.BEST:
+                    running = False
+
             if mouse.alive:
-                mouse.alive = False
-            elif mode == SimulationMode.BEST:
+                steps_per_frame = SPEED_MULTIPLIER if keys[pygame.K_s] else 1
+
+                for _ in range(steps_per_frame):
+                    if mouse.alive and mode != SimulationMode.USER_CONTROLLED:
+                        move_with_network(maze, mouse)
+                    else:
+                        break
+            elif mode != SimulationMode.BEST:
                 running = False
 
-        if mouse.alive:
-            steps_per_frame = SPEED_MULTIPLIER if keys[pygame.K_s] else 1
+            # Render
+            screen.fill(graphics.BG_COLOR)
 
-            for _ in range(steps_per_frame):
-                if mouse.alive and mode != SimulationMode.USER_CONTROLLED:
-                    move_with_network(maze, mouse)
-                else:
-                    break
-        elif mode != SimulationMode.BEST:
-            running = False
+            maze_pixel_size = maze.size * graphics.CELL_SIZE
+            graphics.draw_maze(screen, mouse, maze, offset_x=0, offset_y=maze_offset_y)
+            graphics.draw_mouse(screen, mouse, offset_x=0, offset_y=maze_offset_y)
+            graphics.draw_dashboard(
+                screen=screen,
+                x=maze_pixel_size,
+                y=0,
+                width=DASHBOARD_WIDTH,
+                height=screen.get_height(),
+                mouse=mouse,
+                genome=mouse.genome,
+                m=maze,
+                best_simulation=(mode == SimulationMode.BEST)
+            )
 
-        # Render
-        screen.fill(graphics.BG_COLOR)
-
-        maze_pixel_size = maze.size * graphics.CELL_SIZE
-        graphics.draw_maze(screen, mouse, maze, offset_x=0, offset_y=maze_offset_y)
-        graphics.draw_mouse(screen, mouse, offset_x=0, offset_y=maze_offset_y)
-        graphics.draw_dashboard(
-            screen=screen,
-            x=maze_pixel_size,
-            y=0,
-            width=DASHBOARD_WIDTH,
-            height=screen.get_height(),
-            mouse=mouse,
-            genome=mouse.genome,
-            m=maze,
-            best_simulation=(mode == SimulationMode.BEST)
-        )
-
-        pygame.display.flip()
-        clock.tick(FPS)
-
-    return mouse
+            pygame.display.flip()
+            clock.tick(FPS)
 
 
 def cleanup_pygame():

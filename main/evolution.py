@@ -19,11 +19,11 @@ class NEATTrainer:
         self.generation = 0
 
         # Config
-        self.NUM_GENERATIONS = 1000
+        self.NUM_GENERATIONS = 200
         self.MAX_CHECKPOINTS = 3
         self.N_MAZES = 1
         self.CHECKPOINT_INTERVAL = 50
-        self.MAZE_LOAD_INTERVAL = 150
+        self.MAZE_LOAD_INTERVAL = 200
         self.SIMULATE = True
 
         # Paths
@@ -96,15 +96,15 @@ class NEATTrainer:
                 print(f"     * {maze.name}")
             print()
 
-    def simulate_best_mouse(self, best_mouse):
+    def simulate(self, mice):
         """Executes the simulation of the best mouse."""
         if not self.SIMULATE:
             return
 
-        if self.generation % self.CHECKPOINT_INTERVAL == 0 and best_mouse is not None:
-            print(f"\n--> Simulation of the best mouse (gen: {self.generation})...\n")
+        if self.generation % self.CHECKPOINT_INTERVAL == 0 and mice is not None:
+            print(f"\n--> Simulation of mouse in (gen: {self.generation})...\n")
             random_maze = random.choice(self.mazes)
-            simulation.run(best_mouse, random_maze, self.config)
+            simulation.run(mice, random_maze, self.config)
 
     def update_bestest_mouse(self, best_mouse):
         """Updates the best mouse if necessary."""
@@ -169,7 +169,8 @@ class NEATTrainer:
 
         self.update_bestest_mouse(best_mouse)
         self.load_new_mazes()
-        self.simulate_best_mouse(best_mouse)
+        self.simulate(list(mice.values())[::50])
+        self.simulate([best_mouse])
 
         self.generation += 1
 
@@ -205,7 +206,7 @@ class NEATTrainer:
         )
 
         self.save_debug_log()
-        self.simulate_best_mouse(self.bestest_mouse)
+        self.simulate(self.bestest_mouse)
 
 if __name__ == '__main__':
     trainer = NEATTrainer()
