@@ -19,11 +19,11 @@ class NEATTrainer:
         self.generation = 0
 
         # Config
-        self.NUM_GENERATIONS = 10
+        self.NUM_GENERATIONS = 1000
         self.MAX_CHECKPOINTS = 3
         self.N_MAZES = 1
-        self.CHECKPOINT_INTERVAL = 100
-        self.MAZE_LOAD_INTERVAL = 100
+        self.CHECKPOINT_INTERVAL = 50
+        self.MAZE_LOAD_INTERVAL = 150
         self.SIMULATE = True
 
         # Paths
