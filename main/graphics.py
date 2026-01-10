@@ -73,9 +73,8 @@ def draw_text(screen, text, x, y, size=18, color=TEXT_COLOR, bold=False):
 
 def get_death_reason(mouse):
     if mouse.alive: return "ALIVE"
-    if mouse.steps >= mice.max_steps: return "TIMEOUT"
+    if mouse.steps >= mice.MAX_STEPS: return "TIMEOUT"
     if mouse.arrived: return "GOAL!"
-    if mouse.stuck: return "STUCK"
     return "CRASHED"
 
 

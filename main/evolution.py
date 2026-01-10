@@ -18,7 +18,7 @@ class NEATTrainer:
         self.loader = MazeLoader()
         self.generation = 0
 
-        # Configurazione
+        # Config
         self.NUM_GENERATIONS = 10
         self.MAX_CHECKPOINTS = 3
         self.N_MAZES = 1
@@ -26,17 +26,17 @@ class NEATTrainer:
         self.MAZE_LOAD_INTERVAL = 100
         self.SIMULATE = True
 
-        # Percorsi
+        # Paths
         self.nets_directory = "./nets"
         self.bestest_path = os.path.join(self.nets_directory, "bestest_mouse.pkl")
         self.images_directory = "./images"
 
-        # Stato
+        # State
         self.bestest_mouse = None
         self.best_mice = {}
         self.mazes = self.loader.get_random_mazes(self.N_MAZES)
 
-        # Configurazione NEAT
+        # NEAT config
         full_config_path = os.path.join(os.path.dirname(__file__), config_path)
         self.config = neat.Config(
             neat.DefaultGenome,
@@ -45,6 +45,10 @@ class NEATTrainer:
             neat.DefaultStagnation,
             full_config_path
         )
+
+    # ---
+    # Memory
+    # ---
 
     def configure_population(self):
         """Configures the NEAT population, if it can it restores the session from a checkpoint."""
@@ -87,7 +91,7 @@ class NEATTrainer:
         """Loads new mazes."""
         if (self.generation - 1) % self.MAZE_LOAD_INTERVAL == 0:
             self.mazes = self.loader.get_random_mazes(self.N_MAZES)
-            print("\n---> New mazes loaded:")
+            print("\n-> New mazes loaded:")
             for maze in self.mazes:
                 print(f"     * {maze.name}")
             print()
@@ -119,7 +123,7 @@ class NEATTrainer:
         with open(path, "wb") as f:
             pickle.dump(mouse, f)
 
-        print(f"\n---> Saved '{name}' in {path}")
+        print(f"\n-> Saved '{name}' in {path}")
         print(mouse.stats())
 
     def save_debug_log(self):
@@ -134,6 +138,10 @@ class NEATTrainer:
 
         print(f"\n- Log saved in {log_path}")
 
+    # ---
+    # Main methods
+    # ---
+
     def eval_genomes(self, genomes, _):
         """Core of the evolution process."""
         best_mouse = None
@@ -143,7 +151,7 @@ class NEATTrainer:
             genome.fitness = 0
             net = neat.nn.RecurrentNetwork.create(genome, self.config)
             mice[genome_id] = Mouse(
-                start_position=mz.start_cell,
+                start_position=mz.START_CELL,
                 genome=genome,
                 gid=genome_id,
                 generation=self.generation,
