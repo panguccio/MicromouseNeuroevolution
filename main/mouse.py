@@ -2,21 +2,20 @@ import maze
 from direction import Direction
 from maze import Maze
 
-BONUS = 5000
-maze_size = 16
-
-# MAX CONSTANTS
-max_visits = 15
-max_steps = maze_size ** 2
-max_stuck_counter = max_steps // 3
+# Constants
+ARRIVAL_BONUS = 5000
+MAZE_SIZE = 16
+MAX_VISITS = 15
+MAX_STEPS = MAZE_SIZE ** 2
+MAX_STUCK_COUNTER = MAX_STEPS // 3
 
 
 class Mouse:
+    """Represents a mouse agent navigating through a maze using a neural network."""
 
-    def __init__(self, start_position=(maze_size, 0), genome=None, gid=None, net=None,
+    def __init__(self, start_position=(MAZE_SIZE, 0), genome=None, gid=None, net=None,
                  generation="X"):
-
-        # STATUS AND CHARACTERISTICS
+        # Status and characteristics
         self.alive = True
         self.start_position = start_position
         self.position = start_position
@@ -25,48 +24,45 @@ class Mouse:
         self.arrived = False
         self.sight = 1
 
-        # MEMORY
+        # Memory
         self.visited_cells = set()
         self.visited_cells.add(self.start_position)
         self.closest_position = start_position
 
-        # FOR COST COMPUTATION
+        # Movement tracking
         self.steps = 0
         self.collisions = 0
 
-        # GENETICS
+        # Genetics
         self.genome = genome
         self.gid = gid
         self.net = net
         self.generation = generation
 
-        # FITNESS
+        # Fitness tracking
         self.fitness_values = []
 
     def reset(self):
+        """Reset mouse to initial state for a new maze exploration."""
         self.alive = True
         self.position = self.start_position
+        self.last_position = self.position
+        self.direction = Direction.N
+        self.arrived = False
 
         self.visited_cells = set()
         self.visited_cells.add(self.start_position)
         self.closest_position = self.start_position
 
-        self.direction = Direction.N
-        self.arrived = False
-
         self.steps = 0
         self.collisions = 0
-
-        self.last_position = self.position
         self.genome.fitness = 0
 
-        if self.net is not None: self.net.reset()
-
-    # ---
-    # Input processing
-    # ---
+        if self.net is not None:
+            self.net.reset()
 
     def get_inputs(self, m: Maze):
+        """Get all sensor inputs for the neural network."""
         inputs = [
             self.sense_north(m),
             self.sense_east(m),
@@ -83,40 +79,61 @@ class Mouse:
     # ---
 
     def sense_north(self, m: Maze):
+        """Sense distance to wall in north direction."""
         return self.sense(m, Direction.N, self.sight)
 
     def sense_east(self, m: Maze):
+        """Sense distance to wall in east direction."""
         return self.sense(m, Direction.E, self.sight)
 
     def sense_south(self, m: Maze):
+        """Sense distance to wall in south direction."""
         return self.sense(m, Direction.S, self.sight)
 
     def sense_west(self, m: Maze):
+        """Sense distance to wall in west direction."""
         return self.sense(m, Direction.W, self.sight)
 
     def sense(self, m: Maze, direction, sight):
+        """
+        Sense distance to the first wall in a given direction.
+        Returns normalized distance (0 = far, 1 = close).
+        """
         distance = m.first_wall(direction, *self.position, sight)
         if distance is None:
             return 0
         return 1 - distance / sight
 
     def proximity(self, m: Maze):
-        """in which 'circle' it's positioned the mouse, that is, how close it's to the center"""
-        return (maze_size // 2 - 1 - m.range_distance_from_goal(self.position)) / (maze_size // 2 - 1)
+        """
+        Calculate proximity to goal using range distance.
+        Returns normalized value where 1 = at goal, 0 = far from goal.
+        """
+        max_range = MAZE_SIZE // 2 - 1
+        current_range = m.range_distance_from_goal(self.position)
+        return (max_range - current_range) / max_range
 
     def relative_position_x(self):
+        """Get normalized X position relative to goal (0 = start, 1 = goal)."""
         max_distance = maze.x_distance_from_goal(self.start_position)
-        return (max_distance - maze.x_distance_from_goal(self.position)) / max_distance
+        current_distance = maze.x_distance_from_goal(self.position)
+        return (max_distance - current_distance) / max_distance
 
     def relative_position_y(self):
+        """Get normalized Y position relative to goal (0 = start, 1 = goal)."""
         max_distance = maze.y_distance_from_goal(self.start_position)
-        return (max_distance - maze.y_distance_from_goal(self.position)) / max_distance
+        current_distance = maze.y_distance_from_goal(self.position)
+        return (max_distance - current_distance) / max_distance
 
     # ---
     # Movement
     # ---
 
     def act(self, output, m: Maze):
+        """
+        Execute an action based on neural network output.
+        Updates position, fitness, and checks termination conditions.
+        """
         self.steps += 1
         self.genome.fitness -= 0.1
 
@@ -124,34 +141,44 @@ class Mouse:
         r, c = self.position
         self.last_position = self.position
 
+        # Check for collision with wall
         if m.has_wall(self.direction, r, c):
             self.genome.fitness -= 2
             self.collisions += 1
         else:
+            # Move to new position
             self.position = (r + self.direction.dr, c + self.direction.dc)
 
+        # Reward getting closer to goal
         if m.range_distance_from_goal(self.position) < m.range_distance_from_goal(self.closest_position):
             self.closest_position = self.position
             self.genome.fitness += 100
 
+        # Reward exploring new cells
         if self.position not in self.visited_cells:
             self.genome.fitness += 100
             self.visited_cells.add(self.position)
         else:
             self.genome.fitness -= 1
 
+        # Check if goal reached
         if maze.is_in_goal(self.position):
-            self.genome.fitness += BONUS
+            self.genome.fitness += ARRIVAL_BONUS
             self.arrived = True
             self.alive = False
             return
 
-        if self.steps >= max_steps:
+        # Check if max steps exceeded
+        if self.steps >= MAX_STEPS:
             self.genome.fitness -= 5
             self.alive = False
             return
 
     def explore(self, m: Maze):
+        """
+        Explore the maze until reaching the goal or exceeding max steps.
+        Uses neural network to decide actions.
+        """
         self.reset()
 
         while self.alive:
@@ -160,15 +187,19 @@ class Mouse:
             action = outputs.index(max(outputs))
             self.act(action, m)
 
-    # ---
-    # Stats for debugging
-    # ---
-
     def stats(self):
-        genetics = f"\tgeneration: {self.generation}; gid: {self.gid}\n"
-        position = f"\tlast position: {self.position} -> {maze.manhattan_distance_from_goal(self.position)} from goal\n"
-        fitness = f"\tfitness: {self.genome.fitness}\n"
-        status = f"\tarrived? {self.arrived}.\n"
-        path = f"\tsteps: {self.steps}, num visited: {len(self.visited_cells)}\n"
-        costs = f"\tvisits/cell: {self.steps / len(self.visited_cells)}; coverage: {(100 * len(self.visited_cells) / (maze_size ** 2)):.2f}%; collisions: {self.collisions}\n"
+        """Generate statistics string for debugging and logging."""
+        genetics = f"\tGeneration: {self.generation}; ID: {self.gid}\n"
+        status = f"\tArrived: {self.arrived}\n"
+        position = (f"\tLast position: {self.position} "
+                    f"-> {maze.manhattan_distance_from_goal(self.position)} from goal\n")
+        fitness = f"\tFitness: {self.genome.fitness}\n"
+        path = f"\tSteps: {self.steps}, Visited cells: {len(self.visited_cells)}\n"
+
+        visits_per_cell = self.steps / len(self.visited_cells)
+        coverage = 100 * len(self.visited_cells) / (MAZE_SIZE ** 2)
+        costs = (f"\tVisits per cell: {visits_per_cell:.2f}; "
+                 f"Coverage: {coverage:.2f}%; "
+                 f"Collisions: {self.collisions}\n")
+
         return genetics + status + position + fitness + path + costs
