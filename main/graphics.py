@@ -94,7 +94,7 @@ def draw_dashboard(screen, x, y, width, height, mouse, genome, m, best_simulatio
     if mouse.genome is not None:
         fitness = mouse.genome.fitness
     else:
-        fitness = None
+        fitness = 0
     stats = [
         ("Genome", mouse.gid),
         ("Status", get_death_reason(mouse), SUCCESS_COLOR if mouse.arrived else reason_color),

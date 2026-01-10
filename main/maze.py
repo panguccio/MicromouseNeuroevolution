@@ -18,21 +18,17 @@ def manhattan_distance_from_goal(pointed_cell):
     """Calculate minimum Manhattan distance from a cell to any goal cell."""
     return min(manhattan(pointed_cell, goal_cell) for goal_cell in GOAL_CELLS)
 
-
 def is_in_goal(pointed_cell):
     """Check if a cell is in the goal area."""
     return manhattan_distance_from_goal(pointed_cell) == 0
-
 
 def x_distance_from_goal(pointed_cell):
     """Calculate minimum horizontal distance from a cell to any goal cell."""
     return min(abs(goal_cell[1] - pointed_cell[1]) for goal_cell in GOAL_CELLS)
 
-
 def y_distance_from_goal(pointed_cell):
     """Calculate minimum vertical distance from a cell to any goal cell."""
     return min(abs(goal_cell[0] - pointed_cell[0]) for goal_cell in GOAL_CELLS)
-
 
 def manhattan(cell_a, cell_b):
     """Calculate Manhattan distance between two cells."""

@@ -56,10 +56,15 @@ class Mouse:
 
         self.steps = 0
         self.collisions = 0
-        self.genome.fitness = 0
+        if self.genome is not None:
+            self.genome.fitness = 0
 
         if self.net is not None:
             self.net.reset()
+
+    # ---
+    # Inputs
+    # ---
 
     def get_inputs(self, m: Maze):
         """Get all sensor inputs for the neural network."""
@@ -74,24 +79,16 @@ class Mouse:
         ]
         return inputs
 
-    # ---
-    # Inputs
-    # ---
-
     def sense_north(self, m: Maze):
-        """Sense distance to wall in north direction."""
         return self.sense(m, Direction.N, self.sight)
 
     def sense_east(self, m: Maze):
-        """Sense distance to wall in east direction."""
         return self.sense(m, Direction.E, self.sight)
 
     def sense_south(self, m: Maze):
-        """Sense distance to wall in south direction."""
         return self.sense(m, Direction.S, self.sight)
 
     def sense_west(self, m: Maze):
-        """Sense distance to wall in west direction."""
         return self.sense(m, Direction.W, self.sight)
 
     def sense(self, m: Maze, direction, sight):
@@ -188,7 +185,6 @@ class Mouse:
             self.act(action, m)
 
     def stats(self):
-        """Generate statistics string for debugging and logging."""
         genetics = f"\tGeneration: {self.generation}; ID: {self.gid}\n"
         status = f"\tArrived: {self.arrived}\n"
         position = (f"\tLast position: {self.position} "

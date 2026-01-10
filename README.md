@@ -14,51 +14,86 @@ This project aims at training a neural network to solve these particular mazes.
 
 ### Elements
 
-* `mouse.py`: a Class that models the micromouse and links it to a genome in a population; it takes care of the status, the movement and the fitness of the mouse.
-* `maze.py`: a Class that models the maze as a list of integers using binary notation; takes care of the construction of a maze and its characteristics.
-* `maze_loader.py`: a Class that loads the mazes from all the past competitions (and more) from a public Github repository.
-* `direction.py`: n Enum used both by `mouse.py` and `maze.py` for navigating and building the maze.
-* `evolution.py`: the file where the evolution of the NN using NEAT happens.
-* `simulation.py`: the file to build a graphical interface to visualize the navigation of the mouse.
+* `mouse.py`: Micromouse implementation, linked to a genome; it takes care of the status, the movement and the fitness
+  of the mouse.
+* `maze.py`: Maze representation as a list of integers using binary notation; takes care of the construction of a maze
+  and its characteristics.
+* `maze_loader.py`: Loads the mazes from all the past competitions (and more) from a public Github repository.
+* `direction.py`: Direction abstraction, used in `mouse.py` and `maze.py` for navigating and building the maze.
+* `evolution.py`: Main training script (NEAT population management).
+* `simulation.py`: Visualization and simulation runner.
 
-## Design
+## Usage
 
-### Fitness
-The fitness to evaluate a mouse is composed of 3 parts.
-* **Distance score**: how near is (Manhattan distance) the last position of the mouse to the destination.
-* **Novelty score**: how distant is the last position of the mouse with respect to the others; this was used in particular to allow for more exploration visiting the maze.
-* **Cost**: a negative count based on wall collisions, being stuck and doing cycle paths.
+### Dependencies
 
-### Inputs
+```
+install neat-python pygame numpy requests tqdm
+```
 
-There are 3 inputs and 3 outputs.
-Inputs:
-* how close is the wall ahead, with a sight of 3 blocks;
-* how close is the wall on the left, with a sight of 1 block;
-* how close is the wall on the right, with a sight of 1 block.
+Training
+Run the main training script to evolve a population of mice:
 
+```
+python evolution.py
+```
 
-Outputs:
-* go ahead;
-* turn left;
-* turn right.
+Training parameters can be configured in main.py:
 
-At the beginning, there were 5 inputs, the x and the y coordinates of the mouse. However, this showed no improvements in their movement. I don't know if it was because the NN didn't understand how to use them or because of some ugly design choices and bugs I made at the beginning. I want to try to use them again to see if anything changed.
+* NUM_GENERATIONS: Number of generations to train
+* N_MAZES: Number of different mazes to evaluate each generation
+* CHECKPOINT_INTERVAL: How often to save checkpoints and run simulations
+* MAZE_LOAD_INTERVAL: How often to load new random mazes
+
+## How It Works
+
+### Neural Network Architecture
+
+Each mouse has a neural network with:
+
+**7 inputs:**
+
+* 4 distance sensors (North, East, South, West)
+* 2 relative position coordinates (X, Y)
+* 1 proximity to goal value
+
+**4 outputs:**
+
+* Movement direction (North, East, South, West)
+
+### Fitness Function
+
+The fitness is updated during the exploration, rewarding the mouse for good behaviour.
+
+Mice are rewarded for:
+
+* Reaching the goal (+5000 points)
+* Getting closer to the goal (+100 points)
+* Exploring new cells (+100 points)
+
+Mice are penalized for:
+
+* Each step taken (-0.1 points)
+* Colliding with walls (-2 points)
+* Revisiting cells (-1 point)
+* Exceeding maximum steps (-5 points)
 
 ## Results
 
-![screenshot.png](screenshot.png)
+![screenshot.png](images/screenshot.png)
 
-Despite the good intentions, and many headaches, the mice don't seem to be evolving. They evolve rapidly in the first 100 generations, learn to turn and move more smoothly in the maze. However, even after a couple of thousands of generation, 
-they seem to be stuck at that certain fitness, with few mice that exceed it (probably by chance).
+Despite many headaches, the results are unfortunetly inconsistent. The mice seem to be upgrading slowly. They seem to
+show better results when trained one maze at a time. But, they get stuck at a local optima, oscillating between two
+positions while the fitness inevitably drops.
 
-I believe this behaviour is due to the particular structure of the maze and to the fitness design. Since the destination is at the center of the maze, the mice that don't reach it have a high fitness if they end their simulation in a near by spot. So they learn to basically move and turn with a certain casuality. 
-This explains they're inconsistance with different mazes.
+I believe this behaviour is due to the particular structure of the maze and to the fitness design.
+Since the destination is at the center of the maze, if no mice reaches it, the ones with high fitness get stuck.
+They learn to basically move and turn with a certain casuality, until hopefully one mouse reaches the goal.
+Then, the path is well established and it doesn't get shorter (which was the point).
 
-I haven't been able to think about a fitness that could work better in this maze.
+I tried many things, but haven't been able to think about a fitness that could work better in this maze.
 
-### Sources used
+### Use of AI
 
-* For the novelty score: https://ceur-ws.org/Vol-3806/S_29_Omelianenko_Doroshenko_Rodin.pdf
-* For a bit of inspiration with some choices: https://vbstudio.hu/en/blog/20190317-Growing-an-AI-with-NEAT
-* Used LLMs for the graphical interface (completly); for the rest, just as helpers with decisions (not very effective) and for code support (not very effective).
+* Used LLMs help for the graphical interface (completly) and refactoring of the code; for the rest, just as helpers with
+  decisions (not effective at all).
