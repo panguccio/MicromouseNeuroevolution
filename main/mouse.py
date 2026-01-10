@@ -142,6 +142,7 @@ class Mouse:
         if m.has_wall(self.direction, r, c):
             self.genome.fitness -= 2
             self.collisions += 1
+            self.alive = False
         else:
             # Move to new position
             self.position = (r + self.direction.dr, c + self.direction.dc)
@@ -153,10 +154,10 @@ class Mouse:
 
         # Reward exploring new cells
         if self.position not in self.visited_cells:
-            self.genome.fitness += 100
             self.visited_cells.add(self.position)
+            self.genome.fitness += len(self.visited_cells) * 10
         else:
-            self.genome.fitness -= (1 / 15) * self.steps
+            self.genome.fitness -= self.steps / len(self.visited_cells)
 
         # Check if goal reached
         if maze.is_in_goal(self.position):
