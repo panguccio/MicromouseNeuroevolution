@@ -156,7 +156,7 @@ class Mouse:
             self.genome.fitness += 100
             self.visited_cells.add(self.position)
         else:
-            self.genome.fitness -= 1
+            self.genome.fitness -= (1 / 15) * self.steps
 
         # Check if goal reached
         if maze.is_in_goal(self.position):

@@ -22,7 +22,6 @@ class SimulationMode:
     USER_CONTROLLED = "user_controlled"
     TRAINING = "training"
 
-
 def load_best_mouse():
     if not os.path.exists(BESTEST_PATH):
         raise FileNotFoundError(f"File not found: {BESTEST_PATH}")
@@ -196,3 +195,7 @@ def main():
 
     finally:
         cleanup_pygame()
+
+
+if __name__ == '__main__':
+    main()
